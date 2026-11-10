@@ -1,4 +1,6 @@
 """Shared validated values; no provider-specific payloads or side effects."""
+import hashlib
+import json
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Literal
@@ -6,6 +8,12 @@ from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Fie
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(strict=True, extra="forbid", frozen=True, validate_default=True)
+
+    def canonical_bytes(self) -> bytes:
+        return json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+    def record_hash(self) -> str:
+        return hashlib.sha256(self.canonical_bytes()).hexdigest()
 
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:

@@ -146,11 +146,11 @@ When entering `NEEDS_RESEARCH`, save the last valid early checkpoint: `DISCOVERE
 
 **Interfaces:** Consume Task 1 types. Produce `SourceRecord`, `ClaimRevision`, `EvidenceRef`, `VerificationRecord`, `ReviewManifest`, `PolicyReport`, `StoryState`, `ChangeKind`, `validate_evidence(claims: list[ClaimRevision], sources: list[SourceRecord], verdicts: list[VerificationRecord]) -> PolicyReport`. Sources record original/canonical URL, class/publisher, retrieval/publication time, missing-date reason, locator/excerpt, rights/hash. Claims bind stable ID/revision, type/materiality, exact text/caveats, numeric observations and evidence revisions. ReviewManifest binds all script/dossier/verification/render/subtitle/caption/chart/attribution/license inputs.
 
-- [ ] **Write failing tests:** `test_unknown_publication_requires_reason`, `test_unknown_rights_disallows_excerpt`, `test_numeric_basis_vintage_units_explicit`, `test_stale_source_cannot_verify_current_claim`, `test_missing_material_verdict_blocks`, `test_each_use_preserves_caveat`, `test_analysis_label_does_not_exempt_facts`. Assert orphan refs and incomplete manifests fail; honest unknown dates and unsupported claims remain representable but not ready.
-- [ ] **Demonstrate red:** `uv run pytest tests/unit/test_evidence.py -q`; expected missing models/validators.
-- [ ] **Implement minimum:** strict models and deterministic referential validation, including currency, percent/percentage-point, nominal/real, forecast/actual, period/geography and revision basis. No network or model memory verifies evidence. A hash/reference match is never semantic entailment.
-- [ ] **Demonstrate green:** same command and accumulated `uv run pytest tests/unit -q` exit 0; schema snapshots match.
-- [ ] **Review/report/commit:** `feat: version evidence and review contracts`; document semantic verification as future fact-checker/human work.
+- [x] **Write failing tests:** `test_unknown_publication_requires_reason`, `test_unknown_rights_disallows_excerpt`, `test_numeric_basis_vintage_units_explicit`, `test_stale_source_cannot_verify_current_claim`, `test_missing_material_verdict_blocks`, `test_each_use_preserves_caveat`, `test_analysis_label_does_not_exempt_facts`. Assert orphan refs and incomplete manifests fail; honest unknown dates and unsupported claims remain representable but not ready.
+- [x] **Demonstrate red:** `uv run pytest tests/unit/test_evidence.py -q`; expected missing models/validators.
+- [x] **Implement minimum:** strict models and deterministic referential validation, including currency, percent/percentage-point, nominal/real, forecast/actual, period/geography and revision basis. No network or model memory verifies evidence. A hash/reference match is never semantic entailment.
+- [x] **Demonstrate green:** same command and accumulated `uv run pytest tests/unit -q` exit 0; schema snapshots match.
+- [x] **Review/report/commit:** `feat: version evidence and review contracts`; document semantic verification as future fact-checker/human work.
 
 ### Task 3: Immutable artifacts and migration recovery
 
