@@ -1,0 +1,23 @@
+# Foundation implementation ledger
+
+Plan: docs/superpowers/plans/2026-11-09-foundations.md
+Branch: codex/finance-foundations
+Worktree: /Users/sidban/.codex/worktrees/finance-foundations/finance-content-generator
+
+| Task | Status | Owner | Tests | Evals / trace | Gaps |
+| --- | --- | --- | --- | --- | --- |
+| 1 | complete | Codex; independent spec + quality reviewers | initial missing-app RED; review regressions 4 + 3 RED; full suite 29 passed | N/A until Tasks 5/7 | no agents/state/traces/eval harness yet |
+| 2 | pending | Codex | not run | not run | dependency tasks pending |
+| 3 | pending | Codex | not run | not run | dependency tasks pending |
+| 4 | pending | Codex | not run | not run | dependency tasks pending |
+| 5 | pending | Codex | not run | not run | dependency tasks pending |
+| 6 | pending | Codex | not run | not run | dependency tasks pending |
+| 7 | pending | Codex | not run | not run | dependency tasks pending |
+| 8 | pending | Codex | not run | not run | dependency tasks pending |
+| 9 | pending | Codex | not run | not run | dependency tasks pending |
+| 10 | pending | Codex | not run | not run | dependency tasks pending |
+| 11 | pending | Codex | not run | not run | dependency tasks pending |
+| 12 | pending | Codex | not run | not run | dependency tasks pending |
+| 13 | pending | Codex | not run | not run | dependency tasks pending |
+| 14 | pending | Codex | not run | not run | dependency tasks pending |
+| 15 | pending | Codex | not run | not run | dependency tasks pending |

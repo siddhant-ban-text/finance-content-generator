@@ -1,0 +1,15 @@
+[project]
+name = "finance-content-generator"
+version = "0.1.0"
+description = "Evaluation-first local editorial pipeline foundations"
+requires-python = ">=3.12,<3.13"
+dependencies = ["pydantic>=2.12,<3"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+markers = ["phoenix_live: requires explicit local Phoenix opt-in"]
