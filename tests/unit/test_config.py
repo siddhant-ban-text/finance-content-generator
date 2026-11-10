@@ -38,3 +38,13 @@ def test_invalid_boolean_and_publish_activation_denied(monkeypatch):
     monkeypatch.setenv("FINANCE_PUBLISHING_ENABLED","true")
     with pytest.raises(ValidationError):
         Settings.from_env()
+
+def test_collector_configuration_is_local_and_explicit(monkeypatch):
+    monkeypatch.setenv('FINANCE_PHOENIX_ENDPOINT', 'http://127.0.0.1:16006/v1/traces')
+    assert Settings.from_env().phoenix_endpoint == 'http://127.0.0.1:16006/v1/traces'
+    for endpoint in ('https://collector.invalid/v1/traces',
+                     'http://user:secret@127.0.0.1:6006/v1/traces',
+                     'http://127.0.0.1:6006/v1/traces?token=secret'):
+        monkeypatch.setenv('FINANCE_PHOENIX_ENDPOINT', endpoint)
+        with pytest.raises(ValueError):
+            Settings.from_env()
