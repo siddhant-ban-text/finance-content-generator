@@ -3,8 +3,10 @@ import argparse
 import json
 from pathlib import Path
 from app.contracts import common, execution, evidence, workflow
+from app.workflow import state
 
 GROUPS = {
+    "state.json": (state.StateEvent,state.StorySnapshot,state.TransitionRequest),
     "common.json": (common.ArtifactRef, common.Money, common.Percent, common.PercentagePoints, common.Usage, common.Principal),
     "execution.json": (execution.InputEnvelope, execution.OutputEnvelope, execution.ExecutionError),
     "evidence.json": (evidence.SourceRecord,evidence.ClaimRevision,evidence.EvidenceRef,evidence.VerificationRecord,evidence.NumericObservation,evidence.ClaimUse),

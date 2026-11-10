@@ -157,7 +157,7 @@ def test_migrations_atomic_idempotent(tmp_path, monkeypatch):
     migrate(conn)
     conn.close()
     conn = open_database(tmp_path / "store.sqlite")
-    assert conn.execute("SELECT count(*) FROM schema_migrations").fetchone()[0] == 1
+    assert conn.execute("SELECT version FROM schema_migrations ORDER BY version").fetchall() == [(path.name,) for path in sorted(db.MIGRATIONS_DIR.glob("*.sql"))]
     conn.close()
 
 

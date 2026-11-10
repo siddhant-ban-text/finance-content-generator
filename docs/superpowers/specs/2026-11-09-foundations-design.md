@@ -1,6 +1,6 @@
 # Evaluation-first pipeline foundations design
 
-Status: design approved by the user on 2026-11-09; detailed planning authorized.
+Status: design approved 2026-11-09; foundation execution authorized 2026-11-10. Individual agents and deployment remain excluded.
 Date: 2026-11-09.
 
 ## Intent and scope
@@ -27,7 +27,7 @@ preserved.
 - Human approval is mandatory for each publication. Only an authenticated human
   action can enter `APPROVED_FOR_PUBLISH`.
 - Browser sign-in through GitHub; only the user's account may approve.
-- This request is design and planning only. Do not implement agents or deploy.
+- The initial request covered design/planning; the user subsequently approved foundation execution on 2026-11-10. Do not implement individual agents or deploy.
 - No cloud deployment, paid service, social publishing or recurring spend without
   explicit user approval. The README's USD/CAD 50 target is not an approved budget.
 
@@ -348,8 +348,11 @@ or tested documented fallback, versioned schemas/prompts, and limitations docs.
 Fresh builder review completed on 2026-11-09: "Nothing important left." The reviewer
 found the foundations sufficiently specified for planning, with remaining choices
 explicitly deferred or reasonably left to the implementer. The user approved this
-design on 2026-11-09 after confirming browser GitHub authentication. The next
-deliverable is the detailed implementation plan; agent implementation is excluded.
+design on 2026-11-09 after confirming browser GitHub authentication. The detailed
+plan was completed, independently reviewed with GPT Astra medium, and approved
+for foundation execution on 2026-11-10. Individual agent implementation remains
+excluded.
 
-No application tests, agent evaluations, Phoenix service, OAuth setup, or
-publication have been run or claimed as part of this document.
+At design drafting, no application tests, agent evaluations, Phoenix service,
+OAuth setup, or publication had run. Current foundation execution evidence is
+recorded in TASKS.md; this design document does not assert those checks passed.
