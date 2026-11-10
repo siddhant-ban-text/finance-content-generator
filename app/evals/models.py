@@ -1,0 +1,155 @@
+"""Versioned dataset contracts; foundation expectations are fixture evidence only."""
+from typing import Annotated, Iterator, Literal
+
+from pydantic import Field, PrivateAttr, model_validator
+
+from app.contracts.common import Nonempty, Sha256, StrictModel, UtcDatetime
+from app.contracts.execution import SyntheticData
+
+Split = Literal['dev', 'holdout', 'prod_regression']
+Purpose = Literal['tune', 'evaluate', 'gate']
+AgentName = Literal['foundation']
+Scenario = Literal['increment', 'invalid_reference', 'state_gate', 'changed_version', 'missing_metadata']
+
+
+class FixtureInput(StrictModel):
+    """Trap values are data for a later deterministic fixture stage, not valid evidence."""
+    scenario: Scenario
+    data: SyntheticData
+    reference_ids: tuple[Nonempty, ...]
+    state: Literal['DRAFT', 'AWAITING_APPROVAL', 'APPROVED_FOR_PUBLISH']
+    artifact_version: Nonempty
+    metadata_present: bool
+
+
+class FixtureReference(StrictModel):
+    outcome: Literal['accept', 'reject']
+    output: SyntheticData | None
+    rejection_code: Scenario | None
+
+    @model_validator(mode='after')
+    def outcome_content(self):
+        if self.outcome == 'accept':
+            if self.output is None or self.rejection_code is not None:
+                raise ValueError('accept_requires_output')
+        elif self.output is not None or self.rejection_code in (None, 'increment'):
+            raise ValueError('reject_requires_code')
+        return self
+
+
+class FixtureLabels(StrictModel):
+    target_behavior: Scenario
+    critical_trap: bool
+
+
+class Rights(StrictModel):
+    status: Literal['synthetic_fixture', 'reviewed_permitted']
+    provenance: Nonempty
+    retention: Nonempty
+
+
+class Adjudication(StrictModel):
+    status: Literal['fixture_expected', 'human_adjudicated']
+    labeler: Nonempty
+    labeled_at: UtcDatetime
+    rationale: Nonempty
+    confidence: Annotated[float, Field(ge=0, le=1)]
+    disagreement_history: tuple[Nonempty, ...]
+
+
+class SplitFile(StrictModel):
+    path: Nonempty
+    sha256: Sha256
+    example_ids: tuple[Nonempty, ...]
+    event_groups: tuple[Nonempty, ...]
+    evidence_fingerprints: tuple[Sha256, ...]
+
+
+class DatasetManifest(StrictModel):
+    schema_version: Literal['1.0']
+    agent_name: AgentName
+    agent_version: Nonempty
+    dataset_version: Nonempty
+    kind: Literal['synthetic_foundation', 'illustrative', 'adjudicated_agent']
+    input_schema: Literal['foundation_fixture.input/1.0']
+    reference_schema: Literal['foundation_fixture.reference/1.0']
+    files: dict[Split, SplitFile]
+    required_splits: tuple[Split, ...]
+    label_taxonomy: tuple[Scenario, ...]
+    rights: Rights
+    adjudication: Adjudication
+    limitations: tuple[Nonempty, ...]
+
+    @model_validator(mode='after')
+    def complete_splits_and_kind(self):
+        if set(self.files) != {'dev', 'holdout', 'prod_regression'}:
+            raise ValueError('required_split_files')
+        if set(self.required_splits) != set(self.files) or len(self.required_splits) != 3:
+            raise ValueError('required_split_membership')
+        validate_provenance(self.kind, self.rights, self.adjudication)
+        return self
+
+
+class EvalExample(StrictModel):
+    schema_version: Literal['1.0']
+    example_id: Nonempty
+    agent_name: AgentName
+    agent_version: Nonempty
+    dataset_version: Nonempty
+    split: Split
+    input: FixtureInput
+    reference: FixtureReference
+    labels: FixtureLabels
+    severity: Literal['low', 'medium', 'high', 'critical']
+    source_refs: tuple[Nonempty, ...]
+    reference_ids: tuple[Nonempty, ...]
+    event_group: Nonempty
+    evidence_fingerprints: Annotated[tuple[Sha256, ...], Field(min_length=1)]
+    rights: Rights
+    adjudication: Adjudication
+
+    @model_validator(mode='after')
+    def consistent_fixture_expectation(self):
+        rejecting = self.input.scenario != 'increment'
+        if self.labels.target_behavior != self.input.scenario:
+            raise ValueError('fixture_label_mismatch')
+        if self.labels.critical_trap != rejecting:
+            raise ValueError('fixture_trap_mismatch')
+        if rejecting:
+            if self.reference.outcome != 'reject' or self.reference.rejection_code != self.input.scenario or self.severity != 'critical':
+                raise ValueError('fixture_rejection_required')
+        elif self.reference.outcome != 'accept':
+            raise ValueError('fixture_acceptance_required')
+        return self
+
+
+def validate_provenance(kind: str, rights: Rights, adjudication: Adjudication) -> None:
+    if kind == 'synthetic_foundation':
+        if rights.status != 'synthetic_fixture' or adjudication.status != 'fixture_expected':
+            raise ValueError('synthetic_fixture_provenance_required')
+    elif kind == 'adjudicated_agent':
+        if rights.status != 'reviewed_permitted' or adjudication.status != 'human_adjudicated':
+            raise ValueError('human_adjudication_and_rights_required')
+
+
+class LoadedDataset(StrictModel):
+    """Safe routine reports. Only iter_examples() grants selected evidence access.
+
+    Private examples are excluded even from model_dump(include=...). This is an
+    accidental-disclosure boundary, not protection against hostile local Python.
+    """
+    dataset_version: Nonempty
+    dataset_hash: Sha256
+    agent_name: AgentName
+    kind: Literal['synthetic_foundation', 'adjudicated_agent']
+    split: Split
+    purpose: Purpose
+    count: Annotated[int, Field(ge=0)]
+    _examples: tuple[EvalExample, ...] = PrivateAttr(default=())
+
+    def summary(self) -> dict[str, object]:
+        return self.model_dump(mode='json')
+
+    def iter_examples(self) -> Iterator[EvalExample]:
+        """Privileged evaluator access; never use holdout for prompt iteration."""
+        return iter(self._examples)
