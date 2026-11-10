@@ -6,6 +6,10 @@ from app.contracts.common import ArtifactRef, Nonempty, Sha256, StrictModel, Usa
 
 T = TypeVar("T", bound=StrictModel)
 
+class SyntheticData(StrictModel):
+    """Strict local arithmetic fixture shared by typed fake provider contracts."""
+    value: int
+
 class InvocationMetadata(StrictModel):
     schema_version: Literal["1.0"] = "1.0"
     run_id: UUID
@@ -52,3 +56,20 @@ class OutputEnvelope(InvocationMetadata, Generic[T]):
 
 def decode_envelope(data: bytes, payload_type: type[T]) -> InputEnvelope[T]:
     return InputEnvelope[payload_type].model_validate_json(data)
+
+class AttemptRecord(InvocationMetadata):
+    """Durable journal snapshot, not a claim of exactly-once external work."""
+    request_id: UUID
+    input_fingerprint: Sha256
+    input_ref: ArtifactRef
+    retry_count: int = Field(ge=0, le=2)
+    status: Literal['STARTED','OUTPUT_STORED','COMPLETED','FAILED','BLOCKED','INTERRUPTED']
+    provider: Nonempty
+    model: Nonempty
+    parameters: dict[str, int | float] = Field(default_factory=dict)
+    trace_id: str
+    span_id: str
+    started_at: UtcDatetime
+    finished_at: UtcDatetime | None = None
+    output_envelope: str | None = None
+    handoff_request: str | None = None

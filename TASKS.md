@@ -11,7 +11,7 @@ Worktree: managed attachment for this chat; local absolute path is in the ignore
 | 3 | complete | scoped implementer; independent spec + quality reviewers | storage14 / full69 GREEN; durability and REPLACE regressions RED→GREEN | N/A persistence-only; Tasks 5/7 pending | filesystem fsync and trusted-machine assumptions documented |
 | 4 | complete | scoped implementer; separate spec + Astra medium quality reviews | staged RED→GREEN; full314 GREEN | N/A until Tasks 5/7 | P3 independent matrix oracle deferred; auth/production validators absent/failclosed |
 | 5 | complete | native completion; separate spec + Astra medium quality reviews | privacy/timeout/timestamp RED→GREEN; full348 GREEN | actual SDK two-project offline bundle verified; live Phoenix Task9 | at-least-once; timeout health may be process-local; no agent eval |
-| 6 | pending | Codex | not run | not run | dependency tasks pending |
+| 6 | complete | scoped runner implementer; separate spec + quality reviews | initial2RED; serialization10RED→GREEN; focused35/full383 GREEN | synthetic offline3span trace verified; no editorial quality claim | single stopped-runner recovery; uncertain external work interrupted |
 | 7 | pending | Codex | not run | not run | dependency tasks pending |
 | 8 | pending | Codex | not run | not run | dependency tasks pending |
 | 9 | pending | Codex | not run | not run | dependency tasks pending |

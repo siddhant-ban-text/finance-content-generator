@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 from app.contracts import common, execution, evidence, workflow
+from app.execution import protocols
 from app.workflow import state
 from app.observability import models as telemetry
 
@@ -11,7 +12,10 @@ GROUPS = {
                        telemetry.HealthReport, telemetry.ExportReport, telemetry.CollectorHealth),
     "state.json": (state.StateEvent,state.StorySnapshot,state.TransitionRequest),
     "common.json": (common.ArtifactRef, common.Money, common.Percent, common.PercentagePoints, common.Usage, common.Principal),
-    "execution.json": (execution.InputEnvelope, execution.OutputEnvelope, execution.ExecutionError),
+    "execution.json": (execution.InputEnvelope, execution.OutputEnvelope, execution.ExecutionError,
+                       execution.AttemptRecord, protocols.ModelConfiguration, protocols.ModelRequest, protocols.ModelResponse,
+                       execution.SyntheticData, protocols.ModelRequest[execution.SyntheticData],
+                       protocols.ModelResponse[execution.SyntheticData]),
     "evidence.json": (evidence.SourceRecord,evidence.ClaimRevision,evidence.EvidenceRef,evidence.VerificationRecord,evidence.NumericObservation,evidence.ClaimUse),
     "workflow.json": (workflow.ReviewManifest,workflow.PolicyReport,workflow.RevisionRef),
 }
