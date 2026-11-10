@@ -158,11 +158,11 @@ When entering `NEEDS_RESEARCH`, save the last valid early checkpoint: `DISCOVERE
 
 **Interfaces:** Produce `open_database(path: Path) -> sqlite3.Connection`, `migrate(conn: Connection) -> None`, `ArtifactStore.put(data: bytes, media_type: str, schema_version: str) -> ArtifactRef`, `ArtifactStore.read(ref: ArtifactRef) -> bytes`, `ArtifactStore.reconcile() -> RecoveryReport`. RecoveryReport lists missing/corrupt references and orphan files without deletion. DB stores immutable artifact metadata and migration versions.
 
-- [ ] **Write failing tests:** `test_same_bytes_same_ref`, `test_temp_write_crash_never_registers_missing_file`, `test_rename_before_db_crash_reports_orphan`, `test_corrupt_ref_blocks_handoff`, `test_path_traversal_and_escaping_symlink_denied`, `test_migrations_atomic_idempotent`, `test_foreign_keys_wal_and_timeout`. Inject faults around file/DB commits; assert prior committed bytes survive.
-- [ ] **Demonstrate red:** `uv run pytest tests/integration/test_storage.py -q`; expected missing storage interface.
-- [ ] **Implement minimum:** validated hash-derived paths, temp write/flush/fsync/atomic rename before DB registration. Enable foreign keys, WAL and 5,000 ms busy timeout. Never resolve caller paths or remote URLs. Recovery reports missing content without fabricating it.
-- [ ] **Demonstrate green:** same command exits 0 against reopened on-disk SQLite, not only in-memory DB.
-- [ ] **Review/report/commit:** `feat: persist immutable artifacts with crash recovery`; record disk-full and local machine-admin threat boundaries.
+- [x] **Write failing tests:** `test_same_bytes_same_ref`, `test_temp_write_crash_never_registers_missing_file`, `test_rename_before_db_crash_reports_orphan`, `test_corrupt_ref_blocks_handoff`, `test_path_traversal_and_escaping_symlink_denied`, `test_migrations_atomic_idempotent`, `test_foreign_keys_wal_and_timeout`. Inject faults around file/DB commits; assert prior committed bytes survive.
+- [x] **Demonstrate red:** `uv run pytest tests/integration/test_storage.py -q`; expected missing storage interface.
+- [x] **Implement minimum:** validated hash-derived paths, temp write/flush/fsync/atomic rename before DB registration. Enable foreign keys, WAL and 5,000 ms busy timeout. Never resolve caller paths or remote URLs. Recovery reports missing content without fabricating it.
+- [x] **Demonstrate green:** same command exits 0 against reopened on-disk SQLite, not only in-memory DB.
+- [x] **Review/report/commit:** `feat: persist immutable artifacts with crash recovery`; record disk-full and local machine-admin threat boundaries.
 
 ### Task 4: Transactional state, rework and invalidation
 

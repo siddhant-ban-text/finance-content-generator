@@ -8,7 +8,7 @@ Worktree: /Users/sidban/.codex/worktrees/finance-foundations/finance-content-gen
 | --- | --- | --- | --- | --- | --- |
 | 1 | complete | Codex; independent spec + quality reviewers | initial missing-app RED; review regressions 4 + 3 RED; full suite 29 passed | N/A until Tasks 5/7 | no agents/state/traces/eval harness yet |
 | 2 | complete | Codex; independent spec + quality reviewers | missing-module RED; verdict7RED + duplicate2RED; evidence26 / combined68 GREEN | N/A until Tasks 5/7 | semantic entailment remains future agent/human work |
-| 3 | pending | Codex | not run | not run | dependency tasks pending |
+| 3 | complete | scoped implementer; independent spec + quality reviewers | storage14 / full69 GREEN; durability and REPLACE regressions RED→GREEN | N/A persistence-only; Tasks 5/7 pending | filesystem fsync and trusted-machine assumptions documented |
 | 4 | pending | Codex | not run | not run | dependency tasks pending |
 | 5 | pending | Codex | not run | not run | dependency tasks pending |
 | 6 | pending | Codex | not run | not run | dependency tasks pending |
