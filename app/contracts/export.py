@@ -3,11 +3,15 @@ import argparse
 import json
 from pathlib import Path
 from app.contracts import common, execution, evidence, workflow
+from app.evals import models as evaluations
 from app.execution import protocols
 from app.workflow import state
 from app.observability import models as telemetry
 
 GROUPS = {
+    "evaluations.json": (evaluations.FixtureInput, evaluations.FixtureReference, evaluations.EvalExample,
+                         evaluations.EvalResult, evaluations.EvaluationPolicy, evaluations.ExperimentConfig,
+                         evaluations.ExperimentBundle, evaluations.ComparisonReport),
     "telemetry.json": (telemetry.SpanRecord, telemetry.SpanEvent, telemetry.EnqueueResult,
                        telemetry.HealthReport, telemetry.ExportReport, telemetry.CollectorHealth),
     "state.json": (state.StateEvent,state.StorySnapshot,state.TransitionRequest),

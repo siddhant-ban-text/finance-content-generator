@@ -153,3 +153,112 @@ class LoadedDataset(StrictModel):
     def iter_examples(self) -> Iterator[EvalExample]:
         """Privileged evaluator access; never use holdout for prompt iteration."""
         return iter(self._examples)
+
+# Experiment schemas are versioned independently of the fixture schemas above.
+from app.contracts.common import Usage
+from app.contracts.execution import OutputEnvelope
+from app.execution.protocols import ModelConfiguration
+
+
+class EvalResult(StrictModel):
+    evaluator_id: Nonempty
+    metric: Nonempty
+    status: Literal['PASS', 'FAIL', 'ERROR', 'SKIPPED']
+    value: Annotated[float, Field(allow_inf_nan=False, ge=0, le=1)] | None = None
+    denominator: Annotated[int, Field(gt=0)] | None = None
+    severity: Literal['low', 'medium', 'high', 'critical'] = 'low'
+    reason: Literal['fixture_check', 'judge_unavailable', 'judge_invalid', 'not_run', 'execution_error', 'evaluator_error']
+
+
+class ExperimentConfig(StrictModel):
+    schema_version: Literal['1.0'] = '1.0'
+    agent_name: Literal['foundation'] = 'foundation'
+    dataset_root: Nonempty = 'evals/foundation/1.0.0'
+    policy_path: Nonempty = 'evals/policies/foundation.v1.json'
+    repeats: Annotated[int, Field(ge=1, le=100)] = 1
+    seed: int = 0
+
+
+class EvaluationPolicy(StrictModel):
+    schema_version: Literal['1.0']
+    policy_id: Literal['foundation.v1']
+    agent_name: Literal['foundation']
+    synthetic_only: Literal[True]
+    required_evaluators: tuple[Nonempty, ...]
+    required_splits: tuple[Split, ...]
+    contract_pass_rate: Literal[1.0]
+    policy_pass_rate: Literal[1.0]
+    critical_false_accepts: Literal[0]
+    rubric_pass_rate: Literal[1.0]
+
+
+class ExampleEvaluation(StrictModel):
+    example_id: Nonempty
+    repeat: Annotated[int, Field(ge=0)]
+    severity: Literal['low', 'medium', 'high', 'critical']
+    expected_outcome: Literal['accept', 'reject']
+    output: OutputEnvelope[SyntheticData] | None = Field(default=None, repr=False)
+    results: tuple[EvalResult, ...] = Field(repr=False)
+    error: Literal['execution_error'] | None = None
+    retry_count: Annotated[int, Field(ge=0)] = 0
+    latency_ms: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
+    started_at: UtcDatetime | None = None
+    finished_at: UtcDatetime | None = None
+
+    @model_validator(mode='after')
+    def observed_times(self):
+        if (self.started_at is None) != (self.finished_at is None):
+            raise ValueError('observed_times_must_be_paired')
+        if self.started_at is not None and self.finished_at < self.started_at:
+            raise ValueError('observed_times_must_be_ordered')
+        return self
+
+
+class MetricAggregate(StrictModel):
+    samples: Annotated[int, Field(ge=0)]
+    denominator: Annotated[int, Field(ge=0)]
+    passes: Annotated[int, Field(ge=0)]
+    failures: Annotated[int, Field(ge=0)]
+    errors: Annotated[int, Field(ge=0)]
+    skipped: Annotated[int, Field(ge=0)]
+    rate: Annotated[float, Field(ge=0, le=1)] | None
+
+
+class ExperimentBundle(StrictModel):
+    schema_version: Literal['1.0'] = '1.0'
+    synthetic: Literal[True] = True
+    config: ExperimentConfig
+    model_configuration: ModelConfiguration
+    evaluator_versions: dict[Nonempty, Nonempty]
+    split: Split
+    status: Literal['PASS', 'FAIL', 'ERROR', 'INCOMPLETE']
+    example_count: Annotated[int, Field(ge=0)]
+    expected_count: Annotated[int, Field(ge=0)]
+    provenance: dict[Nonempty, Nonempty]
+    records: tuple[ExampleEvaluation, ...] = Field(repr=False)
+    aggregates: dict[Nonempty, MetricAggregate]
+    critical_false_accepts: Annotated[int, Field(ge=0)]
+    usage: Usage
+    issues: tuple[Literal['dataset_incomplete', 'evaluator_coverage', 'result_incomplete', 'execution_error', 'evaluator_error'], ...]
+
+    def summary(self) -> dict[str, object]:
+        return {'schema_version': self.schema_version, 'synthetic': True, 'status':self.status,
+                'split':self.split, 'example_count':self.example_count,
+                'expected_count':self.expected_count, 'executions':len(self.records),
+                'repeats':self.config.repeats, 'seed':self.config.seed,
+                'critical_false_accepts':self.critical_false_accepts, 'bundle_hash':self.record_hash()}
+
+    def private_failures(self) -> tuple[ExampleEvaluation, ...]:
+        return tuple(row for row in self.records if row.error or any(r.status != 'PASS' for r in row.results))
+
+
+class ComparisonReport(StrictModel):
+    schema_version: Literal['1.0'] = '1.0'
+    status: Literal['PASS', 'FAIL', 'ERROR']
+    reason: Literal['compatible', 'candidate_failed', 'not_comparable', 'invalid_bundle']
+    candidate_hash: Sha256
+    baseline_hash: Sha256
+    failing_examples: tuple[Nonempty, ...] = Field(default=(), repr=False, exclude=True)
+
+    def summary(self) -> dict[str, object]:
+        return {**self.model_dump(mode='json'), 'failing_example_count':len(self.failing_examples)}

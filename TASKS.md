@@ -13,7 +13,7 @@ Worktree: managed attachment for this chat; local absolute path is in the ignore
 | 5 | complete | native completion; separate spec + Astra medium quality reviews | privacy/timeout/timestamp RED→GREEN; full348 GREEN | actual SDK two-project offline bundle verified; live Phoenix Task9 | at-least-once; timeout health may be process-local; no agent eval |
 | 6 | complete | scoped runner implementer; separate spec + quality reviews | initial2RED; serialization10RED→GREEN; focused35/full383 GREEN | synthetic offline3span trace verified; no editorial quality claim | single stopped-runner recovery; uncertain external work interrupted |
 | 7 | complete | scoped dataset implementer; separate spec + quality reviews | missing-loader22RED; expectation2RED→GREEN; dataset31/full414 GREEN | immutable1.0.0;3cases/split;2criticalrejections/split | syntheticonly; suppliedfingerprints; no actualagent eval |
-| 8 | pending | Codex | not run | not run | dependency tasks pending |
+| 8 | complete | scoped implementers; separate spec + Astra quality reviews | staged RED→GREEN; focused62/full476 GREEN | all3 synthetic splits PASS3cases/18checks; exits0/1/2; offline trace join | fixturebaseline not human-approved; no real judge quality |
 | 9 | pending | Codex | not run | not run | dependency tasks pending |
 | 10 | pending | Codex | not run | not run | dependency tasks pending |
 | 11 | pending | Codex | not run | not run | dependency tasks pending |
