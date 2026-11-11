@@ -14,7 +14,7 @@ Worktree: managed attachment for this chat; local absolute path is in the ignore
 | 6 | complete | scoped runner implementer; separate spec + quality reviews | initial2RED; serialization10RED→GREEN; focused35/full383 GREEN | synthetic offline3span trace verified; no editorial quality claim | single stopped-runner recovery; uncertain external work interrupted |
 | 7 | complete | scoped dataset implementer; separate spec + quality reviews | missing-loader22RED; expectation2RED→GREEN; dataset31/full414 GREEN | immutable1.0.0;3cases/split;2criticalrejections/split | syntheticonly; suppliedfingerprints; no actualagent eval |
 | 8 | complete | scoped implementers; separate spec + Astra quality reviews | staged RED→GREEN; focused62/full476 GREEN | all3 synthetic splits PASS3cases/18checks; exits0/1/2; offline trace join | fixturebaseline not human-approved; no real judge quality |
-| 9 | pending | Codex | not run | not run | dependency tasks pending |
+| 9 | complete | scoped adapter; separate spec + Astra quality reviews; root live/UI | privacy/atomic-export RED→GREEN; full506 GREEN1skip; live1 GREEN | actual datasets/experiments/scores/UI; replay2→2; verified self-contained offline export | Phoenix21 single trace owner; later topology/index follow-up; ambiguous writes need reconciliation |
 | 10 | pending | Codex | not run | not run | dependency tasks pending |
 | 11 | pending | Codex | not run | not run | dependency tasks pending |
 | 12 | pending | Codex | not run | not run | dependency tasks pending |

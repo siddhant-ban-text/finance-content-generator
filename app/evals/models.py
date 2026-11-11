@@ -1,5 +1,6 @@
 """Versioned dataset contracts; foundation expectations are fixture evidence only."""
 from typing import Annotated, Iterator, Literal
+from pathlib import Path
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -146,6 +147,7 @@ class LoadedDataset(StrictModel):
     purpose: Purpose
     count: Annotated[int, Field(ge=0)]
     _examples: tuple[EvalExample, ...] = PrivateAttr(default=())
+    _source_root: Path | None = PrivateAttr(default=None)
 
     def summary(self) -> dict[str, object]:
         return self.model_dump(mode='json')

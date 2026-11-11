@@ -174,6 +174,14 @@ Every agent span carries:
 
 Trace hierarchy: pipeline run (root) → agent invocation (child) → retrieval/tool/LLM spans (children). Use OpenTelemetry trace context propagation so one trace links all agents. Keep a stable `run_id` even when retries create new spans.
 
+The foundation probe found that pinned Phoenix 21.0.0 assigns a globally unique
+trace ID to one owning project. Requested project resource tags and shared W3C
+context are preserved, but a shared trace cannot be ingested into multiple Phoenix
+projects. See the [observability evidence](../observability/README.md). The run
+index must expose actual ownership. Before implementing real agents, their design
+must resolve one owning project versus separate linked traces; separate per-agent
+Phoenix dashboards are not yet an achieved capability.
+
 ## 9. Recommended stack
 
 | Layer | MVP choice | Rationale |

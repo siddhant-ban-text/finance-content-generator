@@ -341,6 +341,7 @@ def main(argv=None) -> int:
     parser.add_argument('--output', type=Path, default=Path('data/evals'))
     parser.add_argument('--repeats', type=int, default=1)
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--phoenix', action='store_true', help='Explicitly register existing local evidence in loopback Phoenix')
     args = parser.parse_args(argv)
     runner = None
     try:
@@ -349,7 +350,16 @@ def main(argv=None) -> int:
         runner = create_runner(args.output / 'runtime')
         bundle = run_experiment(config,dataset,runner,foundation_evaluators())
         path = persist_bundle(bundle,args.output)
-        print(json.dumps({**bundle.summary(), 'bundle_path':str(path.resolve())},sort_keys=True))
+        summary={**bundle.summary(), 'bundle_path':str(path.resolve())}
+        if args.phoenix:
+            from app.evals.phoenix import PhoenixAdapter
+            adapter=PhoenixAdapter(args.output/'phoenix-registry.db')
+            offline=adapter.export_offline(bundle,args.output/'offline'/bundle.record_hash())
+            registration=adapter.publish_experiment(bundle)
+            summary.update(phoenix=registration.model_dump(mode='json'),offline_path=str(offline.resolve()))
+        print(json.dumps(summary,sort_keys=True))
+        if args.phoenix and registration.status != 'registered':
+            return 2
         return exit_code(bundle.status)
     except Exception:
         print(json.dumps({'status':'ERROR','error':'evaluation_unavailable','synthetic':True}))

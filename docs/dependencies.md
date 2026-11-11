@@ -38,3 +38,29 @@ Primary references:
 - [Phoenix project routing](https://arize.com/docs/phoenix/tracing/how-to-tracing/setup-tracing/setup-projects)
 - [Phoenix privacy settings](https://github.com/Arize-ai/phoenix/blob/main/src/phoenix/config.py)
 - [Phoenix health endpoint](https://github.com/Arize-ai/phoenix/blob/main/render.yaml)
+
+## Task 9 client boundary
+
+`arize-phoenix-client==3.7.0` is pinned without the full Phoenix Python server or
+evaluation extras. `httpx>=0.27,<1` is an explicit runtime dependency, locked to
+0.28.1. Existing OTel SDK/API/exporter 1.45.2 pins remain unchanged. The SDK's
+verified wheel SHA256 is
+`20a39e524a124ea48a61a6619f2997b938e9fe36996cf686ab2624aadbc3899b`.
+
+Actual 3.7.0 source was inspected: `Client(http_client=...)` bypasses SDK
+`.env.phoenix` and PHOENIX environment discovery; `Dataset.id`, `version_id` and
+`examples` supply remote linkage; `experiments.create`, `log_run` and
+`log_evaluation` register already executed evidence. The upload API may make
+multiple bounded requests (upload and versioned readback). The adapter gives
+each request an explicit one-second timeout. This is not an end-to-end batch
+deadline. Only literal HTTP loopback addresses are allowed through
+`FINANCE_PHOENIX_ENDPOINT`, with no redirects, proxies, netrc, ambient auth or
+cookies. Tests inspect actual final HTTPX requests under credential sentinels.
+The full server remains the immutable compose image; live compatibility is
+reported separately, never inferred from a package install.
+
+Primary references (verified against the pinned installed source):
+- [Phoenix client3.7.0](https://pypi.org/project/arize-phoenix-client/3.7.0/)
+- [Client initialization](https://arize-phoenix.readthedocs.io/projects/client/api/client.html)
+- [Dataset API](https://arize-phoenix.readthedocs.io/projects/client/api/datasets.html)
+- [Experiment APIs](https://arize-phoenix.readthedocs.io/projects/client/api/experiments.html)

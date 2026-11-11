@@ -3,7 +3,7 @@ name = "finance-content-generator"
 version = "0.1.0"
 description = "Evaluation-first local editorial pipeline foundations"
 requires-python = ">=3.12,<3.13"
-dependencies = ["pydantic>=2.12,<3", "opentelemetry-sdk==1.45.2", "opentelemetry-exporter-otlp-proto-http==1.45.2"]
+dependencies = ["pydantic>=2.12,<3", "arize-phoenix-client==3.7.0", "httpx>=0.27,<1", "opentelemetry-sdk==1.45.2", "opentelemetry-exporter-otlp-proto-http==1.45.2"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10"]

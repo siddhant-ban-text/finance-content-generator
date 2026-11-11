@@ -128,4 +128,5 @@ def load_dataset(
         purpose=purpose, count=len(examples[split]),
     )
     loaded._examples = examples[split]
+    loaded._source_root = root.resolve()
     return loaded

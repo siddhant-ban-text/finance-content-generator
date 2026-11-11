@@ -258,6 +258,10 @@ class Telemetry:
         return directory
 
     def _tracer(self, project):
+        # Preserve the requested resource project and W3C context. Phoenix21
+        # stores each globally unique trace_id under one owning project, even
+        # when its spans request different projects; do not rewrite identities
+        # to manufacture cross-project storage. Task13 joins by run/trace IDs.
         with self._lock:
             if project not in self._providers:
                 provider = TracerProvider(resource=Resource({'service.name':'finance-content-generator',
