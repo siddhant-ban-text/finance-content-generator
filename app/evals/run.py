@@ -314,15 +314,24 @@ def persist_bundle(bundle: ExperimentBundle, root: Path) -> Path:
     return path
 
 
+def read_bundle_bytes(raw: bytes) -> ExperimentBundle:
+    """Parse an already captured private artifact without reopening its source."""
+    try:
+        doc=json.loads(raw)
+        if set(doc)!={'bundle_hash','bundle'}:
+            raise ValueError('invalid_bundle')
+        bundle=validate_bundle(ExperimentBundle.model_validate_json(json.dumps(doc['bundle'])))
+        if bundle.record_hash()!=doc['bundle_hash']:
+            raise ValueError('bundle_integrity')
+        return bundle
+    except Exception:
+        raise ValueError('invalid_bundle') from None
+
+
 def read_bundle(path: Path) -> ExperimentBundle:
     try:
-        doc = json.loads(path.read_bytes())
-        if set(doc) != {'bundle_hash','bundle'}:
-            raise ValueError('invalid_bundle')
-        bundle = validate_bundle(ExperimentBundle.model_validate_json(json.dumps(doc['bundle'])))
-        if bundle.record_hash() != doc['bundle_hash']:
-            raise ValueError('bundle_integrity')
-        if len(path.stem) == 64 and path.stem != bundle.record_hash():
+        bundle=read_bundle_bytes(path.read_bytes())
+        if len(path.stem)==64 and path.stem!=bundle.record_hash():
             raise ValueError('bundle_integrity')
         return bundle
     except Exception:

@@ -1,4 +1,5 @@
 """Fail-closed local dataset loading with global integrity and split checks."""
+from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
@@ -36,44 +37,62 @@ def _read(path: Path) -> bytes:
         _fail(path, 'unreadable_file')
 
 
-def load_dataset(
-    root: Path,
+@dataclass(frozen=True, repr=False)
+class DatasetSnapshot:
+    """Private immutable source bytes; never include in routine projections."""
+    manifest_bytes: bytes
+    split_bytes: tuple[tuple[str, bytes], ...]
+
+
+def _manifest(raw: bytes) -> DatasetManifest:
+    path=Path('manifest.json')
+    try:
+        header=json.loads(raw)
+    except (ValueError,UnicodeError):
+        _fail(path,'invalid_manifest')
+    if isinstance(header,dict) and header.get('kind')=='illustrative':
+        _fail(path,'illustrative_not_promotable')
+    try:
+        return DatasetManifest.model_validate_json(raw)
+    except (ValidationError,ValueError):
+        _fail(path,'invalid_manifest')
+
+
+def read_dataset_snapshot(root: Path) -> DatasetSnapshot:
+    """Capture each filesystem artifact once; validation consumes these exact bytes."""
+    raw=_read(_safe_file(root,'manifest.json'))
+    manifest=_manifest(raw)
+    contents=tuple((name,_read(_safe_file(root,manifest.files[name].path))) for name in SPLITS)
+    return DatasetSnapshot(raw,contents)
+
+
+def load_dataset_snapshot(
+    snapshot: DatasetSnapshot,
     split: Literal['dev', 'holdout', 'prod_regression'],
     purpose: Literal['tune', 'evaluate', 'gate'],
 ) -> LoadedDataset:
-    """Validate every split before returning selected evidence.
-
-    Hashes pin local content within a version; they do not authenticate its author.
-    A later release record must independently bind dataset_hash to an approval.
-    """
-    if split not in SPLITS or purpose not in ('tune', 'evaluate', 'gate'):
+    """Pure shared global validation for filesystem and complete offline snapshots."""
+    if split not in SPLITS or purpose not in ('tune','evaluate','gate'):
         raise DatasetValidationError('invalid_selection')
-    if split == 'holdout' and purpose == 'tune':
+    if split=='holdout' and purpose=='tune':
         raise DatasetValidationError('holdout_tune_denied')
-    manifest_path = _safe_file(root, 'manifest.json')
-    raw = _read(manifest_path)
-    try:
-        header = json.loads(raw)
-    except (ValueError, UnicodeError):
-        _fail(manifest_path, 'invalid_manifest')
-    if isinstance(header, dict) and header.get('kind') == 'illustrative':
-        _fail(manifest_path, 'illustrative_not_promotable')
-    try:
-        manifest = DatasetManifest.model_validate_json(raw)
-    except (ValidationError, ValueError):
-        _fail(manifest_path, 'invalid_manifest')
-
-    # Hash every file first; never expose selected rows while another split is invalid.
-    contents = {}
+    manifest_path=Path('manifest.json')
+    manifest=_manifest(snapshot.manifest_bytes)
+    supplied=dict(snapshot.split_bytes)
+    if len(snapshot.split_bytes)!=len(SPLITS) or set(supplied)!=set(SPLITS):
+        _fail(manifest_path,'required_split_files')
+    contents={}
     for name in SPLITS:
-        pin = manifest.files[name]
-        path = _safe_file(root, pin.path)
-        content = _read(path)
-        if hashlib.sha256(content).hexdigest() != pin.sha256:
-            _fail(path, 'file_hash_mismatch')
-        contents[name] = (path, content)
-    if len({pin.path for pin in manifest.files.values()}) != len(SPLITS):
-        _fail(manifest_path, 'duplicate_split_file')
+        pin=manifest.files[name]
+        path=Path(pin.path)
+        if path.is_absolute() or '..' in path.parts or len(path.parts)!=1:
+            _fail(manifest_path,'unsafe_path')
+        content=supplied[name]
+        if hashlib.sha256(content).hexdigest()!=pin.sha256:
+            _fail(path,'file_hash_mismatch')
+        contents[name]=(path,content)
+    if len({pin.path for pin in manifest.files.values()})!=len(SPLITS):
+        _fail(manifest_path,'duplicate_split_file')
 
     examples = {}
     seen_ids = set()
@@ -128,5 +147,20 @@ def load_dataset(
         purpose=purpose, count=len(examples[split]),
     )
     loaded._examples = examples[split]
-    loaded._source_root = root.resolve()
+    return loaded
+
+
+def load_dataset(
+    root: Path,
+    split: Literal['dev', 'holdout', 'prod_regression'],
+    purpose: Literal['tune', 'evaluate', 'gate'],
+) -> LoadedDataset:
+    """Validate every split from one captured snapshot before exposing selected rows."""
+    # Preserve selection errors without touching the filesystem.
+    if split not in SPLITS or purpose not in ('tune','evaluate','gate'):
+        raise DatasetValidationError('invalid_selection')
+    if split=='holdout' and purpose=='tune':
+        raise DatasetValidationError('holdout_tune_denied')
+    loaded=load_dataset_snapshot(read_dataset_snapshot(root),split,purpose)
+    loaded._source_root=root.resolve()
     return loaded

@@ -37,10 +37,24 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description='Compare synthetic fixtures; no production baseline approval.')
     parser.add_argument('--agent',required=True,choices=['foundation'])
     parser.add_argument('--candidate',required=True,type=Path)
-    parser.add_argument('--baseline',required=True,type=Path)
+    parser.add_argument('--baseline',required=True)
+    parser.add_argument('--registry',type=Path,default=None)
     args = parser.parse_args(argv)
     try:
-        result = compare(read_bundle(args.candidate),read_bundle(args.baseline))
+        candidate = read_bundle(args.candidate)
+        if args.baseline == 'approved':
+            from app.config import Settings
+            from app.release.service import ReleaseService
+            import sqlite3
+            registry=args.registry or Settings.from_env().data_dir/'state.db'
+            conn=sqlite3.connect(registry.resolve().as_uri()+'?mode=ro',uri=True)
+            try:
+                baseline=ReleaseService(conn).approved_baseline(args.agent,candidate.split)
+            finally:
+                conn.close()
+        else:
+            baseline=read_bundle(Path(args.baseline))
+        result = compare(candidate,baseline)
         print(json.dumps(result.summary(),sort_keys=True))
         return exit_code(result.status)
     except Exception:

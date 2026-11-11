@@ -7,8 +7,12 @@ from app.evals import models as evaluations
 from app.execution import protocols
 from app.workflow import state
 from app.observability import models as telemetry
+from app.release import models as releases
 
 GROUPS = {
+    "releases.json": (releases.ReleasePolicy,releases.EvidencePin,releases.ReleaseCandidate,
+                      releases.GateDecision,releases.ReleaseApproval,releases.FeedbackAnnotation,
+                      releases.FeedbackCandidate),
     "evaluations.json": (evaluations.FixtureInput, evaluations.FixtureReference, evaluations.EvalExample,
                          evaluations.EvalResult, evaluations.EvaluationPolicy, evaluations.ExperimentConfig,
                          evaluations.ExperimentBundle, evaluations.ComparisonReport),

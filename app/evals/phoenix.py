@@ -26,7 +26,7 @@ from app.contracts.common import Sha256, StrictModel
 from app.evals.datasets import load_dataset
 from app.evals.evaluators import REQUIRED
 from app.evals.models import DatasetManifest, EvalExample, EvalResult, ExperimentBundle, LoadedDataset
-from app.evals.run import HASH_PROVENANCE, aggregate, canonical, digest, persist_bundle, read_bundle, validate_bundle
+from app.evals.run import HASH_PROVENANCE, aggregate, canonical, digest, persist_bundle, read_bundle, read_bundle_bytes, validate_bundle
 from app.observability.sanitize import PROJECTS
 
 RemoteID = Annotated[str, Field(pattern=r'^[A-Za-z0-9_+=:-]{1,256}$')]
@@ -213,6 +213,8 @@ def _remote_id(value):
 class OfflineEvidence:
     bundle: ExperimentBundle
     payload: dict
+    manifest_bytes: bytes
+    examples_bytes: bytes
 
 
 def load_offline(directory: Path) -> OfflineEvidence:
@@ -226,14 +228,21 @@ def load_offline(directory: Path) -> OfflineEvidence:
             'private/dataset-manifest.json','private/examples.jsonl'}
         if set(manifest['files']) != expected or manifest['schema_version'] != '1.0':
             raise ValueError()
+        captured={}
         for name,sha in manifest['files'].items():
             path=directory/name
-            if path.is_symlink() or digest(path.read_bytes()) != sha:
+            if path.is_symlink():
                 raise ValueError()
-        bundle=read_bundle(directory/'private'/f'{manifest["bundle_hash"]}.json')
-        payload=json.loads((directory/'payload.json').read_bytes())
-        header=DatasetManifest.model_validate_json((directory/'private/dataset-manifest.json').read_bytes())
-        content=(directory/'private/examples.jsonl').read_bytes()
+            captured[name]=path.read_bytes()
+            if digest(captured[name])!=sha:
+                raise ValueError()
+        bundle=read_bundle_bytes(captured[f'private/{manifest["bundle_hash"]}.json'])
+        if bundle.record_hash()!=manifest['bundle_hash']:
+            raise ValueError()
+        payload=json.loads(captured['payload.json'])
+        header_bytes=captured['private/dataset-manifest.json']
+        header=DatasetManifest.model_validate_json(header_bytes)
+        content=captured['private/examples.jsonl']
         if header.record_hash() != bundle.provenance['dataset_hash'] or digest(content) != header.files[bundle.split].sha256:
             raise ValueError()
         examples=tuple(EvalExample.model_validate_json(line) for line in content.splitlines())
@@ -244,7 +253,7 @@ def load_offline(directory: Path) -> OfflineEvidence:
         dataset._examples=examples
         if payload != _wire_payload(bundle,dataset):
             raise ValueError()
-        return OfflineEvidence(bundle,payload)
+        return OfflineEvidence(bundle,payload,header_bytes,content)
     except Exception:
         raise ValueError('offline_integrity') from None
 
