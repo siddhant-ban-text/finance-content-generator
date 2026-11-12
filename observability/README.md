@@ -178,3 +178,24 @@ existing exports are never overwritten. Readers see absence or a complete tree.
 The lock is released on process death. A killed process can leave a restricted
 unpublished staging directory for operator cleanup; it cannot expose a partially
 published export or prevent a later retry. This assumes a trusted local filesystem.
+
+## Foundation end-to-end offline acceptance
+
+`uv run --offline python -m app.demo --offline --output data/foundation-demo`
+creates the fake runner journal, all three synthetic evaluation bundles and
+independently verified offline experiment snapshots. `demo-report.json` binds
+current manifest/member hashes, experiment provenance, trace IDs and the checksummed
+`traces/spans.jsonl`. Pending rows and original trace/span IDs remain intact.
+This evidence tests the fallback without starting a collector. The integration
+suite injects export failure and checks degradation, preserved rows and matching
+export identities; it also checks retries, malformed model output and storage
+failure without downstream state advancement.
+
+Explicit `--phoenix` performs loopback registration and trace export after local
+evidence is persisted. The report surfaces each registration/export failure;
+local evaluation PASS does not imply remote visibility. Offline snapshots remain
+restricted, including the holdout private directory. CI uploads only the separate
+sanitized aggregate `public-report.json`, never traces or the whole data tree.
+Native FastAPI tracing remains disabled so callback/session data cannot leak.
+Current live Phoenix/OAuth checks are separate manual gaps; historical Task 9
+probe evidence does not establish current collector availability.

@@ -3,8 +3,37 @@
 The [approved foundation refinement](superpowers/specs/2026-11-09-foundations-design.md)
 resolves missing state, identity, artifact, telemetry and release decisions in this
 blueprint. Its [detailed plan](superpowers/plans/2026-11-09-foundations.md) defines
-the foundation implementation order and tests. These documents describe intended
-behavior; no application implementation is claimed.
+the foundation implementation order and tests. The application implements the shared foundation services and synthetic acceptance
+below. The agent topology, model/runtime choices and publication path remain
+future design, rather than capabilities established by synthetic tests.
+
+## Implemented acceptance boundary
+
+`app.demo.run_demo(output_dir, telemetry_mode)` uses the existing arithmetic
+`FakeStage` through `AgentRunner`, persists its typed input/output and attempts,
+and binds its immutable output reference to a synthetic candidate. Explicit
+`foundation.demo.v1` validators accept only `synthetic_foundation` artifacts.
+Hand-authored synthetic evidence/claim-use/license artifacts exercise the normal
+`StateService` transitions and nine-member `ReviewManifest`; these are not news
+agents or media rendering. The store-bound `PolicyEngine` rechecks exact current
+claim/source revisions, member bytes and rights before review.
+
+The demo runs dev, holdout and prod_regression through `run_experiment`, stores
+private bundles plus independently verified offline exports, and checks a separate
+`ReleaseCandidate`. First release remains `REQUIRES_BOOTSTRAP_APPROVAL`. The CLI
+ends at `AWAITING_APPROVAL`, without any session, approval or publication.
+Integration tests alone mock the GitHub provider transport, use the real callback
+and session flow through `TestClient`, submit authenticated CSRF-protected content
+and release forms, and verify rework revokes content approval. No production
+authentication bypass is provided. `PUBLISHED` remains unavailable even after
+human content approval; there is no publisher or publication HTTP route.
+
+Demo reports bind prompt, schema, dataset, policy, evaluator, code/config/model,
+experiment, manifest/member and trace-export hashes. Local reports and offline
+private evidence stay protected; CI exports only aggregate public synthetic
+results. An offline trace export preserves pending IDs and is not a delivery
+receipt. Existing `MonitoringRepository` remains the read-only projection over
+attempts/evals/local telemetry and audit identifiers.
 
 ## 1. Product definition
 

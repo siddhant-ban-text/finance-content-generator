@@ -140,14 +140,52 @@ For each agent:
 
 Do not assume a single Phoenix project automatically creates the dataset or evaluators; implement explicit dataset/experiment registration and CI commands using the Phoenix SDK version pinned in the project.
 
-## 9. Minimal CI/release commands (target interface)
+## 9. Implemented synthetic acceptance and CI
 
-```bash
-pytest
-python -m app.evals.run --agent news_scout --dataset golden --split dev
-python -m app.evals.run --agent news_scout --dataset golden --split holdout
-python -m app.evals.compare --agent news_scout --baseline approved
-python -m app.release.check --agent news_scout
+```sh
+uv sync --locked
+uv run --offline pytest tests/unit tests/integration -m 'not phoenix_live' -q
+uv run --offline python -m app.demo --offline --output data/foundation-demo
 ```
 
-The commands above define the desired interface; implement them in later slices and test each command.
+`run_demo(output_dir: Path, telemetry_mode: Literal['offline','phoenix']) ->
+DemoReport` requires an empty or absent output directory. It evaluates the locked
+`evals/foundation/1.0.0` dev, holdout and prod_regression splits with
+`foundation.v1` prompt and versioned foundation evaluator/policy pins. Holdout is
+loaded with purpose `gate`, never `tune`. Each split must PASS all required
+metrics with zero critical false accepts. Expected policy rejections count as
+successful safety checks, rather than errors to ignore. The report records their
+counts and the immutable bundle/offline evidence hashes. It also exercises missing
+verdict, missing rights, stale source, unknown schema, automatic approval,
+publication and incomplete release evidence rejections without downstream advance.
+
+`demo-report.json` links local bundles/traces/current review manifest and binds
+full provenance. Offline exports include restricted holdout examples and answers;
+never upload the entire output directory. `public-report.json` is a separate
+allowlisted aggregate projection containing no example IDs, rows, answers,
+authentication material or local evidence paths. CI uploads only that file.
+
+The release service independently rereads all evidence; complete synthetic results
+require a separate authenticated human bootstrap decision. Content approval and
+release approval are distinct, and neither enables editorial agents or publishing.
+The demo CLI performs neither. E2E tests use mocked transport with real callback,
+session, CSRF and human-action service boundaries. Timeout/partial-output/storage
+fault fixtures test plumbing, not real model/retrieval/render quality.
+
+The workflow pins official checkout v6.1.0, setup-uv v10.3.3 and upload-artifact v7
+commits, uv 0.13.4 and `.python-version`, with locked dependencies. Dependency
+installation may download packages; test/demo execution uses uv offline mode.
+The token has only `contents: read`; checkout does not persist credentials. No
+OAuth secrets, Docker, external feeds or model API requests are configured.
+Action pins were verified against the official
+[checkout](https://github.com/actions/checkout),
+[setup-uv](https://github.com/astral-sh/setup-uv), and
+[upload-artifact](https://github.com/actions/upload-artifact) repositories on
+2026-11-12. Remote CI execution is separate from local static workflow checks.
+
+Phoenix mode is explicit and preserves local evidence even when registration or
+trace export fails. Local evaluation PASS does not establish remote delivery;
+inspect each experiment registration, telemetry export error and offline manifest.
+Default acceptance does not prove live Phoenix visibility or real OAuth login.
+Real per-agent golden datasets, calibrated editorial rubrics, benchmarked models
+and agent dashboards must be established in their separately approved slices.

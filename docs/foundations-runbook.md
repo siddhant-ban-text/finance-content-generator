@@ -10,11 +10,52 @@ use `uv run --env-file .env <command>`. Publishing stays disabled in these
 foundations. API providers are unset and require explicit opt-in even to configure.
 Fake stages are allowed only in demo/test environments.
 
-Task 1 implements contracts/settings/prompt integrity only. No agent, provider,
-state persistence, telemetry service, evaluation framework or approval UI exists
-at this task boundary. Task 5 supplies tracing/fallback, Task 7 begins datasets,
-and later tasks supply authenticated human review. Do not infer achieved agent
-quality or publication readiness from contract tests.
+## Synthetic acceptance (Task 15)
+
+Run from the repository root with Python 3.12.15 and uv 0.13.4:
+
+```sh
+uv sync --locked
+uv run --offline pytest tests/unit tests/integration -m 'not phoenix_live' -q
+uv run --offline python -m app.demo --offline --output data/foundation-demo
+```
+
+Use an absent or empty output directory; existing evidence is never overwritten.
+The demo exercises the fake arithmetic runner, service state gates, original
+synthetic artifacts, all three synthetic split experiments and separate release
+readiness. It ends `AWAITING_APPROVAL`, never signs in, approves, or publishes.
+The schema 1.0 `DemoReport` explicitly labels `synthetic_foundation`, binds all
+provenance and experiment/member/manifest hashes, and links the current local
+`review-manifest.json`, immutable eval/offline evidence and `traces/` export.
+`foundation.demo.v1` is an explicitly synthetic validator, not editorial readiness.
+
+`demo-report.json` and `offline/*/private/` remain local protected evidence.
+`public-report.json` contains only allowlisted aggregate synthetic outcomes and
+hashes; it is the only CI artifact upload. No holdout rows/answers, sessions,
+reviewer notes, credentials or local evidence paths are public. Trace JSONL is
+sanitized and its checksum is in the trace manifest; export does not drain pending
+outbox rows or prove collector receipt. `--phoenix` explicitly enables loopback
+registration/export and reports failures alongside the verified offline evidence.
+A local PASS can coexist with remote failure; inspect those fields separately.
+
+The E2E suite mocks GitHub HTTP exchange and uses real callback/session/CSRF form
+requests to exercise content approval, separate release bootstrap, stale manifests
+and edit revocation. It checks unavailable telemetry, timeout retries, invalid
+partial output, disk faults and unavailable publication. It never uses a production
+login bypass. Actual OAuth login and current Phoenix UI visibility remain manual
+checks; skipped live tests are not successes. No real agents, retrieval, rendering,
+paid providers, services or publication are exercised by default acceptance.
+
+For a retention command that inspects a fresh absent root without touching existing
+scratch evidence:
+
+```sh
+FINANCE_DATA_DIR=/private/tmp/finance-retention-new-root uv run --offline python -m app.maintenance --dry-run
+```
+
+Choose an absent root. Existing legacy/corrupt evidence or active nonempty WALs
+can legitimately produce exit 2 with protected files. Do not remove data to make
+this command pass. CI uses its own absent `data/ci-maintenance-empty` root.
 
 ## Durable tracing and offline evidence
 
@@ -65,10 +106,9 @@ provided by tracing. Offline span evidence validates infrastructure behavior onl
 
 ## Local browser reviewer login (Task 11)
 
-This slice establishes browser identity only. No HTTP approval or publishing
-routes are installed. `ReleaseService` remains default-deny unless its caller
-explicitly supplies `SessionService.verify_principal`; Task 12 will wire actual
-human decision routes. The verifier uses the same SQLite connection and only
+The identity boundary supplies sessions for the authenticated content/release
+review routes described below. No publishing routes are installed. `ReleaseService` remains default-deny unless its caller
+explicitly supplies `SessionService.verify_principal`; The review service wires the authenticated human decision routes. The verifier uses the same SQLite connection and only
 reads session state, including when called inside a business transaction.
 
 Register your own GitHub **OAuth App** in GitHub developer settings. Use homepage
@@ -160,7 +200,7 @@ it as `Services(..., review=review)`. Import these types from
 `app.review.service`. Keep every service on the same SQLite connection and owning
 serving thread. A fresh `PolicyEngine` has no configured validators and denies
 approval; only explicitly configured, versioned validators can establish readiness.
-Foundation fixtures are test-only and do not establish editorial readiness.
+Foundation demo validators accept explicitly synthetic fixtures only and do not establish editorial readiness.
 
 Run the separate read-only navigation process from the repository root:
 

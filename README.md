@@ -24,28 +24,32 @@ An evaluation-first blueprint for building a mostly autonomous finance/economics
 - `docs/superpowers/plans/2026-11-09-foundations.md` — detailed test-first foundation tasks and acceptance gates.
 - `AGENTS.md` — durable Codex project rules.
 
-## Recommended implementation order
+## Implemented synthetic foundations
 
-1. Read `AGENTS.md` and `docs/ARCHITECTURE.md`.
-2. In Codex, ask Superpowers to brainstorm and critique the design before implementation.
-3. Ask it to convert `superpowers/IMPLEMENTATION_PLAN.md` into a task plan.
-4. Implement one vertical slice at a time: contracts and durable state → tracing → evaluation framework → authenticated review → first agent.
-5. Do not build every agent in parallel before shared schemas, tracing and eval interfaces exist.
+The repository now implements strict contracts, immutable local artifacts, SQLite
+workflow/audit state, a fake arithmetic runner, versioned synthetic evaluations,
+durable sanitized telemetry, authenticated local review, monitoring and retention.
+Finance agents, source retrieval, renderers and publishing adapters remain future
+slices. No synthetic result establishes editorial quality or release approval.
 
-## Local observability
+From the repository root, with Python from `.python-version` and uv 0.13.4:
 
-Arize Phoenix is the recommended starting observability layer. It is open source and supports tracing, datasets, experiments and evaluators. Use one Phoenix instance with a distinct `project_name` per agent plus a shared orchestration project. Each span carries `agent.name`, `agent.version`, `prompt.version`, `model.name`, `dataset.version`, and `run.id`.
-
-Start it with:
-
-```bash
-docker compose -f observability/docker-compose.yml up -d
+```sh
+uv sync --locked
+uv run --offline pytest tests/unit tests/integration -m 'not phoenix_live' -q
+uv run --offline python -m app.demo --offline --output data/foundation-demo
 ```
 
-Open the Phoenix UI at `http://localhost:6006` (verify the port against the Phoenix image/version you pin).
+The output directory must be empty or absent. The demo creates original synthetic
+artifacts, all three evaluation splits, immutable offline bundles, a current review
+manifest and sanitized trace evidence. It ends at `AWAITING_APPROVAL`; it cannot
+sign in or approve anything. Inspect `data/foundation-demo/demo-report.json`
+locally. Share only `public-report.json`, which contains aggregate synthetic
+results and hashes, never holdout rows or authentication data.
 
-The compose file is a starter, not a production deployment. Pin a tested Phoenix image version before relying on it.
-
-## Important caveat
-
-This is a design and prompt pack, not a claim that the pipeline is already implemented or connected to your accounts. Codex should implement and test the components in stages. Platform publishing APIs, model availability, licensing, and platform monetization requirements must be checked against current official documentation before enabling them.
+See [the runbook](docs/foundations-runbook.md) for review embedding, offline
+operation and retention. Phoenix is optional; default acceptance does not start
+Docker or call external feeds/models. The existing optional live Phoenix probe
+and real OAuth browser checks are separate evidence requirements. CI installs
+locked dependencies, runs offline acceptance and uploads only the public report.
+No remote CI execution or deployment is implied by the checked-in workflow.
