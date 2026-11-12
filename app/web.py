@@ -16,6 +16,7 @@ from app.config import Settings
 class Services:
     oauth: GitHubOAuth
     sessions: SessionService
+    review: object | None = None
     clock: Callable = field(default=lambda:datetime.now(timezone.utc))
 
 
@@ -45,7 +46,7 @@ def create_app(settings: Settings, services: Services) -> FastAPI:
         response.headers['Cache-Control']='no-store'
         response.headers['Referrer-Policy']='no-referrer'
         response.headers['X-Content-Type-Options']='nosniff'
-        response.headers['Content-Security-Policy']="default-src 'none'; frame-ancestors 'none'"
+        response.headers['Content-Security-Policy']="default-src 'none'; img-src 'self'; media-src 'self'; form-action 'self'; frame-ancestors 'none'"
         return response
 
     def cookie(response, name, value, *, http_only=True, max_age=28800):
@@ -104,6 +105,8 @@ def create_app(settings: Settings, services: Services) -> FastAPI:
         response.delete_cookie('finance_csrf',path='/')
         return response
 
+    from app.review.routes import router
+    app.include_router(router)
     return app
 
 

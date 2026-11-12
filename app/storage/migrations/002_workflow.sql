@@ -3,22 +3,22 @@ CREATE TABLE stories (
  version INTEGER NOT NULL CHECK(version>=1), payload TEXT NOT NULL CHECK(json_valid(payload)),
  manifest_hash TEXT REFERENCES artifacts(sha256), approval_id TEXT,
  resume_target TEXT
-);
+) WITHOUT ROWID;
 CREATE TABLE approval_decisions (
  decision_id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(story_id),
  manifest_hash TEXT NOT NULL REFERENCES artifacts(sha256), story_version INTEGER NOT NULL,
  principal_id TEXT NOT NULL CHECK(length(principal_id)>0)
-);
+) WITHOUT ROWID;
 CREATE TABLE state_events (
  event_id TEXT PRIMARY KEY, story_id TEXT NOT NULL REFERENCES stories(story_id),
  version INTEGER NOT NULL, reason_code TEXT NOT NULL, payload TEXT NOT NULL CHECK(json_valid(payload)),
  UNIQUE(story_id,version)
-);
+) WITHOUT ROWID;
 CREATE TABLE state_receipts (
  caller_scope TEXT NOT NULL, operation TEXT NOT NULL, idempotency_key TEXT NOT NULL,
  fingerprint TEXT NOT NULL, response TEXT NOT NULL CHECK(json_valid(response)),
  PRIMARY KEY(caller_scope,operation,idempotency_key)
-);
+) WITHOUT ROWID;
 CREATE TRIGGER stories_initial BEFORE INSERT ON stories
 WHEN NEW.state!='DISCOVERED' OR NEW.version!=1 OR NEW.approval_id IS NOT NULL
 BEGIN SELECT RAISE(ABORT,'story must start discovered'); END;

@@ -153,6 +153,8 @@ class ReleaseService:
             self.conn.execute('INSERT INTO release_heads VALUES (?,?,?,?) ON CONFLICT(agent_name) DO UPDATE SET version=excluded.version,active_id=excluded.active_id,baseline_id=excluded.baseline_id',
                 (receipt.agent_name,receipt.version,receipt.approval_id,receipt.approval_id))
             self.conn.execute('INSERT INTO release_receipts VALUES (?,?,?,?)',(scope,idempotency_key,fingerprint,receipt.approval_id))
+            self.conn.execute('INSERT INTO release_reviewers VALUES (?,?,?)',
+                (receipt.approval_id,principal.provider,principal.account_id))
             self._event('approve',receipt.agent_name,receipt.version,candidate_hash)
             self.conn.commit()
             return receipt

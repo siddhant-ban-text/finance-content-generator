@@ -3,7 +3,7 @@ CREATE TABLE artifacts (
     media_type TEXT NOT NULL CHECK(length(media_type) > 0),
     size_bytes INTEGER NOT NULL CHECK(size_bytes >= 0),
     schema_version TEXT NOT NULL CHECK(schema_version = '1.0')
-);
+) WITHOUT ROWID;
 CREATE TRIGGER artifacts_immutable_update BEFORE UPDATE ON artifacts
 BEGIN SELECT RAISE(ABORT, 'artifact metadata is immutable'); END;
 CREATE TRIGGER artifacts_immutable_delete BEFORE DELETE ON artifacts

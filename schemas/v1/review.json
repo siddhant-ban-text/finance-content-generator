@@ -1,0 +1,76 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "approve",
+        "reject",
+        "revise"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "decision_id": {
+      "format": "uuid",
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "expected_version": {
+      "minimum": 1,
+      "title": "Expected Version",
+      "type": "integer"
+    },
+    "manifest_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "notes": {
+      "maxLength": 8000,
+      "title": "Notes",
+      "type": "string"
+    },
+    "reviewer_id": {
+      "title": "Reviewer Id",
+      "type": "integer"
+    },
+    "reviewer_provider": {
+      "title": "Reviewer Provider",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "story_id": {
+      "format": "uuid",
+      "title": "Story Id",
+      "type": "string"
+    },
+    "trace_id": {
+      "title": "Trace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision_id",
+    "story_id",
+    "reviewer_provider",
+    "reviewer_id",
+    "action",
+    "decided_at",
+    "manifest_hash",
+    "expected_version",
+    "notes",
+    "trace_id"
+  ],
+  "title": "HumanDecision",
+  "type": "object"
+}

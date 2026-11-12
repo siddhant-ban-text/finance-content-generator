@@ -257,3 +257,30 @@ class StateService:
             self._save(result,old,caller_scope,'revise',idempotency_key,fingerprint,'manifest_revised')
             self.conn.commit(); return result
         except BaseException: self.conn.rollback(); raise
+
+    def _review_transition(self,old,decision,scope,key,fingerprint):
+        """Internal seam: caller owns the authenticated decision transaction."""
+        if not self.conn.in_transaction: raise ValueError('review transaction required')
+        target={'approve':StoryState.APPROVED_FOR_PUBLISH,'reject':StoryState.REJECTED,'revise':StoryState.NEEDS_REVISION}[decision.action]
+        if not allowed_edge(old.state,target): raise PolicyDenied('forbidden review edge')
+        approval=None; resume=None; artifacts=dict(old.artifacts)
+        if decision.action=='approve':
+            if old.state!=StoryState.AWAITING_APPROVAL or old.manifest is None or not self.policy.evaluate_readiness(old.manifest,self.clock()).ready:
+                raise PolicyDenied('current manifest not ready')
+            if old.manifest.record_hash()!=old.manifest_hash: raise PolicyDenied('manifest integrity')
+            canonical=old.manifest.canonical_bytes()
+            manifest_ref=ArtifactRef(sha256=old.manifest_hash,media_type='application/json',
+                size_bytes=len(canonical),schema_version=old.manifest.schema_version)
+            try:
+                if self.store.read(manifest_ref)!=canonical: raise ValueError('manifest differs')
+            except ValueError:
+                raise PolicyDenied('registered manifest unavailable or corrupt') from None
+            for stage in ('dossier','verification','script','render'):
+                if old.artifacts.get(stage)!=getattr(old.manifest,stage): raise PolicyDenied('manifest differs from current stage')
+            approval=str(decision.decision_id)
+            self.conn.execute('INSERT INTO approval_decisions VALUES (?,?,?,?,?)',(approval,str(old.story_id),old.manifest_hash,old.version,scope))
+        elif decision.action=='revise':
+            resume=old.state if old.state in NORMAL[:7] else StoryState.RENDERED
+            artifacts=self._retain(artifacts,resume)
+        result=old.model_copy(update=dict(state=target,version=old.version+1,approval_id=approval,resume_target=resume,artifacts=artifacts,reason_code='human_'+decision.action))
+        return self._save(result,old,scope,'human_review',key,fingerprint,'human_'+decision.action,decision.trace_id)

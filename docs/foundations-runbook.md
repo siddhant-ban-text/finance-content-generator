@@ -148,3 +148,81 @@ Mocked CI tests exercise OAuth/session security and inspect raw SQLite snapshots
 SQL exports, debug application/HTTP transport logs and an in-memory OTel exporter
 for credential/private-identity sentinels. Real GitHub browser login requires
 your OAuth app and has not been exercised by this implementation task.
+
+### Authenticated browser review (schema 1.0)
+
+The backend can expose existing artifacts by adding `ReviewService` to the
+embedding example above. Construct `ArtifactStore(settings.data_dir / "artifacts",
+conn)`, `PolicyEngine(store)` and `StateService(conn, store, policy)`, then construct
+`ReviewService(state, current_session_verifier=sessions.verify_principal)` and pass
+it as `Services(..., review=review)`. Import these types from
+`app.storage.artifacts`, `app.workflow.policy`, `app.workflow.state` and
+`app.review.service`. Keep every service on the same SQLite connection and owning
+serving thread. A fresh `PolicyEngine` has no configured validators and denies
+approval; only explicitly configured, versioned validators can establish readiness.
+Foundation fixtures are test-only and do not establish editorial readiness.
+
+Run the separate read-only navigation process from the repository root:
+
+```sh
+uv run streamlit run app/ui/review.py --server.address 127.0.0.1 --server.port 8501 --server.enableCORS true --server.enableXsrfProtection true --browser.gatherUsageStats false
+```
+
+The checked-in `.streamlit/config.toml` also sets these defaults and disables
+Streamlit usage telemetry. `FINANCE_REVIEW_DATABASE` selects the existing database
+(default `data/pipeline.sqlite`). Its URI uses `mode=ro` plus `query_only`; opening
+navigation never creates or migrates a database. Streamlit only displays status,
+synthetic markers and top-level links to `http://127.0.0.1:8765/review/{story_id}`
+and `/releases/{candidate_hash}`. It never reads browser cookies, forwards tokens
+or asserts a reviewer identity. Sign in through the backend `/auth/login` first.
+
+The authenticated backend independently renders narration/script, claims,
+sources/locators, verification, captions/subtitles, charts, attributions and the
+asset/license register. Retrieved strings are escaped; only HTTP(S) source URLs
+become links. Media is authenticated, resolved from a current manifest member's
+immutable hash and served with its registered safe MIME type. HTML/SVG, arbitrary
+paths, stale member hashes and corrupt content are denied. CSP permits same-origin
+images/media and native forms; scripts and frames remain disabled.
+
+Native forms POST a bounded, strictly URL-encoded body. Exact Origin and a
+server-generated session-bound CSRF token are mandatory. Duplicate fields, actor
+fields, duplicate CSRF headers, ambiguous header/form tokens, malformed encoding
+and oversized bodies fail closed. Existing header-CSRF clients for logout remain
+supported. CSRF/session tokens stay outside URLs, DB audit, traces and logs.
+Each rendered form has its own key: browser retry/resubmission must preserve the
+submitted key and complete payload. Do not fetch a new form to retry a response
+lost after commit. Changed payload under the original key conflicts.
+
+Content decisions recheck current session/allowlist, expected version, exact
+manifest and current evidence/rights under `BEGIN IMMEDIATE`. Approval, decision,
+state event and receipt commit atomically. Reject/revise can handle a non-ready
+manifest; approve has no readiness override. Any member change revokes the active
+approval while preserving old audit rows. Factual/script changes return to
+verification; visual changes return to rendering. Historical receipts never
+reactivate revoked content or releases, and responses show current status
+separately. Content approval cannot approve a model/prompt release. First release
+bootstrap requires its own explicitly checked human action. Release checks re-read
+all split/repeat evidence, baseline and exact pins under the same write lock.
+
+Human identities/notes remain in the protected local audit database; the manual
+review span emits only the opaque decision ID and suppresses exception text.
+Without an OTel SDK/collector, immutable audit rows remain the authoritative local
+fallback; core decisions continue to work. Agent experiment tracing retains its
+existing tested durable offline outbox/export. Native FastAPI instrumentation stays
+disabled, including callback query tracing. There is no test-auth configuration or
+browser-provided actor identity, and no publication route or adapter. Approved
+synthetic artifacts are not publishable media.
+
+Initial migrations 001/002 now use `WITHOUT ROWID` to close hidden
+`rowid`/`_rowid_`/`oid` replacement aliases; 007's immutable audit tables do too.
+This initial-DDL hardening applies to **fresh schemas only**. Existing databases
+that already applied 001/002 are not rebuilt, deleted, or silently repaired;
+operators must not treat their old DDL as hardened. A reviewed data-preserving
+upgrade remains future work before existing databases are used for review.
+
+The synthetic integration suite exercises mocked GitHub callback/session flows,
+exact approval, form security, competing edit/approval connections, media isolation,
+release bootstrap/retry, audit rollback and historical replay. Live GitHub browser
+smoke (sign in → review → approve → edit → observe revocation) still requires real
+local OAuth credentials and has not been run. No service, real agent, paid provider
+or publication is started by the tests.
