@@ -313,3 +313,46 @@ No production finance agent or publishing adapter currently emits the first
 three safety warning codes. Synthetic fixtures exercise this contract; complete
 historical safety incident capture, real agent dashboards/threshold calibration,
 remote ownership verification and external alert delivery remain future work.
+
+### Local retention (manual only)
+
+Run `.venv/bin/python -m app.maintenance --dry-run` to inspect a versioned JSON
+report. Dry-run is the default; `--execute` explicitly enables deletion. No
+schedule is installed. `FINANCE_DATA_DIR` selects the local root (default `data`).
+The Python interface is `cleanup(now, dry_run=True, *, data_dir=None)`; `now`
+must carry a timezone. Reports contain relative refs, reasons, byte counts and
+safe error codes, never stored evidence bodies or exception messages. Exit 2
+means errors require inspection; exit 0 means the inspection completed.
+
+Only canonical `data/evals/<bundle_hash>.json` bundles with validated provenance,
+completed record timestamps, a completed PASS/FAIL status and completion strictly
+older than 30 days can be eligible. Exactly 30 days remains protected. Modification
+times do not establish completion. Pending, corrupt, incomplete and unsupported
+files remain protected. Business rows, ArtifactStore bytes, datasets, quarantine,
+review/audit lineage and every historical candidate/baseline remain protected.
+Candidate pins are verified against both stored evidence and ordinary/offline
+source files. All supported database history contributes reference protection,
+including revoked release history. No database rows are deleted.
+
+Supported authority paths relative to the root are `state.db`, `telemetry.db`,
+`evals/runtime/state.db`, and `evals/runtime/telemetry.db`. At least one valid
+business database is required before deleting evidence. Other layouts require
+an explicit future extension; this command never infers authority by recursively
+opening arbitrary databases. Keep external registries in their owning layout;
+cleanup cannot discover references from unrelated roots.
+
+Dry-run opens existing SQLite files read-only with `immutable=1`, without creating,
+migrating or enabling WAL. A nonempty WAL makes that read uncertain, so it reports
+`reference_metadata_unavailable` and retains every candidate. Execute opens existing
+databases with `mode=rw`, reserves their write locks and rechecks references before
+each unlink. Changed files are retained. A failed unlink reports `deletion_failed`
+and leaves all database evidence intact; successful deletions remain listed in a
+partial report. Local processes must use the same authoritative databases; direct
+filesystem replacement by an uncooperative process is outside SQLite locking.
+
+Telemetry JSONL exports are snapshots of pending outbox rows, not delivery
+receipts. Existing telemetry formats have no durable completed-export proof, so
+all telemetry snapshots and pending rows remain protected. Complete offline eval
+exports include immutable dataset copies and also remain protected in this slice.
+No real scratch files should be removed to verify retention; tests execute solely
+against temporary fixtures.

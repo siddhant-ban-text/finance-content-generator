@@ -295,11 +295,11 @@ When entering `NEEDS_RESEARCH`, save the last valid early checkpoint: `DISCOVERE
 
 **Interfaces:** Produce `cleanup(now: datetime, dry_run: bool = True) -> RetentionReport`; report has eligible/deleted/protected refs, reasons, byte counts and errors. Consume immutable artifact/review/baseline references and outbox delivery state from earlier tasks.
 
-- [ ] **Write failing tests:** `test_retention_30_days_preserves_active_refs_baselines_pending_outbox`, `test_dry_run_does_not_delete`, `test_retention_failure_keeps_audit_and_reports_error`. At the 30-day boundary, assert only older unreferenced completed telemetry/eval bundles eligible; active review/audit lineage, released datasets, baselines and pending queue survive. Verify before/after files and row counts identical in dry-run.
-- [ ] **Demonstrate red:** `uv run pytest tests/integration/test_retention.py -q`; expected missing cleanup function.
-- [ ] **Implement minimum:** dry-run default; explicit execute flag for actual cleanup. Never cascade-delete live lineage or immutable dataset versions. Recheck references transactionally before deletion and report partial failure rather than deleting DB evidence for files still present. No scheduled cleanup task is created.
-- [ ] **Demonstrate green:** same test command and `uv run python -m app.maintenance --dry-run` exit 0 with deterministic retention report and no mutation.
-- [ ] **Review/report/commit:** `feat: protect active lineage during local retention`.
+- [x] **Write failing tests:** `test_retention_30_days_preserves_active_refs_baselines_pending_outbox`, `test_dry_run_does_not_delete`, `test_retention_failure_keeps_audit_and_reports_error`. At the 30-day boundary, assert only older unreferenced completed telemetry/eval bundles eligible; active review/audit lineage, released datasets, baselines and pending queue survive. Verify before/after files and row counts identical in dry-run.
+- [x] **Demonstrate red:** `uv run pytest tests/integration/test_retention.py -q`; expected missing cleanup function.
+- [x] **Implement minimum:** dry-run default; explicit execute flag for actual cleanup. Never cascade-delete live lineage or immutable dataset versions. Recheck references transactionally before deletion and report partial failure rather than deleting DB evidence for files still present. No scheduled cleanup task is created.
+- [x] **Demonstrate green:** same test command and `uv run python -m app.maintenance --dry-run` exit 0 with deterministic retention report and no mutation.
+- [x] **Review/report/commit:** `feat: protect active lineage during local retention`.
 
 ### Task 15: End-to-end synthetic acceptance, CI and operational docs
 
