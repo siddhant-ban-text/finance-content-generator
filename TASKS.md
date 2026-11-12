@@ -16,7 +16,7 @@ Worktree: managed attachment for this chat; local absolute path is in the ignore
 | 8 | complete | scoped implementers; separate spec + Astra quality reviews | staged RED→GREEN; focused62/full476 GREEN | all3 synthetic splits PASS3cases/18checks; exits0/1/2; offline trace join | fixturebaseline not human-approved; no real judge quality |
 | 9 | complete | scoped adapter; separate spec + Astra quality reviews; root live/UI | privacy/atomic-export RED→GREEN; full506 GREEN1skip; live1 GREEN | actual datasets/experiments/scores/UI; replay2→2; verified self-contained offline export | Phoenix21 single trace owner; later topology/index follow-up; ambiguous writes need reconciliation |
 | 10 | complete | scoped implementer; separate spec + Astra quality reviews | staged RED→GREEN; release71/full577 GREEN1skip | 3splits x2repeats PASS;42offline spans; regular/offline/mixed await bootstrap | default-deny verifier until Tasks11/12; no real production |
-| 11 | pending | Codex | not run | not run | dependency tasks pending |
+| 11 | complete | scoped auth implementer; separate spec + Astra quality reviews | auth36/full613 GREEN1skip; callback telemetry6→0 | all3 synthetic eval splits PASS; DB/log/trace sentinel checks | live GitHub OAuth unrun; local trusted-machine boundary |
 | 12 | pending | Codex | not run | not run | dependency tasks pending |
 | 13 | pending | Codex | not run | not run | dependency tasks pending |
 | 14 | pending | Codex | not run | not run | dependency tasks pending |

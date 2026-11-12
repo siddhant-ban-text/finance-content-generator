@@ -64,3 +64,37 @@ Primary references (verified against the pinned installed source):
 - [Client initialization](https://arize-phoenix.readthedocs.io/projects/client/api/client.html)
 - [Dataset API](https://arize-phoenix.readthedocs.io/projects/client/api/datasets.html)
 - [Experiment APIs](https://arize-phoenix.readthedocs.io/projects/client/api/experiments.html)
+
+## Task 11 browser authentication
+
+Verified primary documentation on 2026-11-11:
+
+- [GitHub web OAuth flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps): random state, S256 PKCE, exact redirect URI.
+- [Authenticated user endpoint](https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10): public account identity without repo/email scopes; REST version pinned to `2026-03-10`.
+- [Authlib 1.9.5 HTTP client and PKCE documentation](https://docs.authlib.org/en/stable/oauth2/client/http/index.html).
+- [FastAPI dependency injection tests](https://fastapi.tiangolo.com/advanced/testing-dependencies/).
+- [Starlette TestClient](https://starlette.dev/testclient/): HTTPX2 is the supported test backend; plain HTTPX is deprecated.
+- Exact release metadata: [FastAPI 0.162.4](https://pypi.org/project/fastapi/0.162.4/), [Authlib 1.9.5](https://pypi.org/project/Authlib/1.9.5/), [Uvicorn 0.54.0](https://pypi.org/project/uvicorn/0.54.0/), [HTTPX2 2.16.0](https://pypi.org/project/httpx2/2.16.0/).
+
+Runtime pins are FastAPI 0.162.4, Uvicorn 0.54.0, Authlib 1.9.5 and HTTPX
+0.28.1; development tests additionally pin HTTPX2 2.16.0. Starlette 1.10.0 is
+locked transitively. The production OAuth adapter uses Authlib's installed
+`prepare_grant_uri` and `create_s256_code_challenge` protocol helpers with an
+explicit hardened HTTPX 0.28.1 client; it does not use Authlib's HTTPX2 client
+integration. GitHub token exchange and identity lookup use fixed HTTPS URLs,
+no redirects, a ten-second per-request timeout, no ambient proxy/netrc discovery,
+and no cookies carried from token endpoint to identity endpoint. Explicit empty
+scope avoids inheriting a previous authorization's scopes by omitting the scope
+parameter. Tokens are not stored or refreshed.
+
+Settings format is 1.2. Authentication configuration is excluded from execution
+configuration dumps/hashes; changing browser credentials or allowed reviewer IDs
+does not change model execution evidence. Existing execution envelopes retain
+schema 1.0 and can decode historical configuration version strings.
+
+[FastAPI's native OpenTelemetry documentation](https://fastapi.tiangolo.com/advanced/opentelemetry/)
+was also checked against installed 0.162.4 source. Native tracing, metrics, logs
+and operation spans default to enabled and reuse existing global providers.
+The authentication app explicitly disables every native signal and automatic
+configuration; a regression test installs a real global OTel provider and proves
+that OAuth callback code/state generate zero exported spans.

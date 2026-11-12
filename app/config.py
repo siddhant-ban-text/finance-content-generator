@@ -23,7 +23,7 @@ def validate_collector_endpoint(value: str) -> str:
     return value
 
 class Settings(StrictModel):
-    config_version: Literal["1.1"] = "1.1"
+    config_version: Literal["1.2"] = "1.2"
     environment: Literal["local", "test", "demo"] = "local"
     publishing_enabled: Literal[False] = False
     allow_paid_providers: bool = False
@@ -32,6 +32,24 @@ class Settings(StrictModel):
     data_dir: Path = Path("data")
     phoenix_endpoint: str = 'http://127.0.0.1:6006/v1/traces'
     github_client_secret: SecretStr | None = Field(default=None, repr=False, exclude=True)
+
+    github_client_id: str | None = Field(default=None, repr=False, exclude=True)
+    github_allowed_ids: tuple[int, ...] = Field(default=(), repr=False, exclude=True)
+    auth_callback_url: str = Field(default="http://127.0.0.1:8765/auth/github/callback", exclude=True)
+    auth_loopback_development: bool = Field(default=False, exclude=True)
+
+    @property
+    def auth_configured(self) -> bool:
+        return bool(self.github_client_id and self.github_client_secret
+                    and self.github_client_secret.get_secret_value() and self.github_allowed_ids)
+
+    @model_validator(mode="after")
+    def auth_policy(self):
+        if self.auth_callback_url != "http://127.0.0.1:8765/auth/github/callback":
+            raise ValueError("exact loopback auth callback required")
+        if any(type(value) is not int or value <= 0 for value in self.github_allowed_ids):
+            raise ValueError("positive numeric GitHub IDs required")
+        return self
 
     @model_validator(mode="after")
     def policy_defaults(self):
@@ -45,7 +63,7 @@ class Settings(StrictModel):
     @classmethod
     def from_env(cls) -> "Settings":
         values = {}
-        boolean_fields = {"publishing_enabled", "allow_paid_providers", "fake_stage_enabled"}
+        boolean_fields = {"publishing_enabled", "allow_paid_providers", "fake_stage_enabled", "auth_loopback_development"}
         for name in cls.model_fields:
             raw = os.environ.get("FINANCE_" + name.upper())
             if raw is None:
@@ -54,6 +72,8 @@ class Settings(StrictModel):
                 if raw.lower() not in {"true", "false"}:
                     raise ValueError("configuration boolean must be true or false")
                 values[name] = raw.lower() == "true"
+            elif name == "github_allowed_ids":
+                values[name] = tuple(int(value.strip()) for value in raw.split(",") if value.strip())
             elif name == "data_dir":
                 values[name] = Path(raw)
             elif name == "github_client_secret":
