@@ -226,3 +226,90 @@ release bootstrap/retry, audit rollback and historical replay. Live GitHub brows
 smoke (sign in → review → approve → edit → observe revocation) still requires real
 local OAuth credentials and has not been run. No service, real agent, paid provider
 or publication is started by the tests.
+
+## Local monitoring template (synthetic foundation only)
+
+The existing read-only Streamlit navigation includes a **Monitoring** page.
+Run the existing local UI command with `.streamlit/config.toml`: it binds
+127.0.0.1:8501, disables browser usage statistics, and retains CORS/XSRF protection.
+Review links still open the authenticated backend on 127.0.0.1:8765; the monitoring
+page has no credentials, cookies, decision actions or alert delivery integration.
+No service is started by a query or by this documentation.
+
+Set `FINANCE_REVIEW_DATABASE` to the migrated execution/review SQLite database,
+`FINANCE_TELEMETRY_DATABASE` to the **separate** telemetry database, and optionally
+`FINANCE_MONITORING_EVAL_DIR` to the local directory containing immutable experiment
+bundle JSON files (default `data/evals`). Invalid/missing files become explicit
+missing-data indicators. All database reads use SQLite `mode=ro` and `query_only`;
+a missing database is not created. No ordinary dashboard read queries Phoenix or
+any network service.
+
+`MonitoringRepository.summary(agent_name, version, since)` returns a versioned
+`AgentSummary`; `run_index(run_id)` returns a versioned `RunIndex`. The window
+includes attempts with `started_at >= since`; `since` must be timezone aware.
+Attempts, unique logical requests, completed attempts, failed/blocked/interrupted
+attempts, retry attempts (`retry_count > 0`), invalid-input/schema and policy-denied
+counts come from typed journal records. Corrupt records are counted separately as
+**unattributed** because their agent/version/time cannot be trusted. Later agent
+slices must add their actual typed output decoder; only the foundation's
+`SyntheticData` envelope is decoded in this template.
+
+Latency is each finished attempt's wall-clock duration, including handoff, never
+the sum of child model spans. Percentiles use **nearest rank**, index
+`ceil(p * sample_count) - 1`; no samples means null percentiles and sample count 0.
+Usage comes only from attempt envelopes, never also from model-call spans. Token
+totals remain null unless every selected attempt reports the respective count.
+`usage_samples` counts attempts reporting both token counts; missing attempts are
+counted explicitly. Costs are **known subtotals**, with measured and estimated
+values and sample counts separate and currencies never converted or summed
+across currencies. Empty cost maps mean no observed cost, not free execution.
+Override rate is unavailable with denominator 0: the foundation has no automatic
+approval override, and rejection/revision decisions cannot establish such a rate.
+
+Evaluation summaries decode and validate versioned immutable local bundles and
+expose only failure counts, critical false accepts and opaque bundle hashes.
+Duplicate bundles are counted once. Window/version matching uses observed
+execution records; empty or invalid evidence is unavailable, never a passing zero.
+Records without output/time cannot be scoped safely: `eval_unscopable_records`
+counts them plus missing expected execution slots (including empty incomplete
+bundles), `eval_result_count` reports observed evaluator outcomes, failure and
+false-accept totals remain null, and `eval_scope_incomplete` explains coverage.
+Error/incomplete bundles also surface a local eval alert; missing evaluator
+coverage cannot become a passing zero.
+Holdout examples, answers, source text, local evidence paths, reviewer identities,
+notes and callback credentials are excluded from summaries/indexes. The run index
+reads protected history only as opaque event IDs and decision counts, without
+reading protected event/decision payloads. It links known story/run/trace/span IDs
+to opaque experiment bundle hashes. It does not infer Phoenix remote experiment
+IDs from local bundle hashes.
+
+Phoenix 21 has one owning project per global trace ID. The dashboard explicitly
+labels pending span projects as **requested**, leaves verified owner and remote
+URL null, and supplies stable local `trace:<id>/span:<id>` references. Experiment
+routing metadata is not ownership evidence; dataset/experiment APIs are global.
+Acknowledged outbox rows disappear. Therefore project filtering is explicitly
+**partial, pending-span coverage only**, not a historical execution filter.
+Evaluation rows match the selected invocation IDs, so another invocation in the
+same run cannot inherit its project. Pending publishing signals deliberately
+correlate at run level, separately from this evaluation scoping.
+Journal trace/span links survive acknowledgement, with requested project unknown
+when no pending evidence remains. No unified Phoenix navigation is claimed.
+
+Alerts are deterministic, local surfaced projections, not persisted incidents or
+external notifications. Exact typed envelope warning/error codes
+`unsupported_claim_reached_review`, `missing_asset_rights`,
+`forbidden_publishing_attempt` and `telemetry_failure` produce critical alerts;
+arbitrary warnings/error text never appears. A pending `publish.run` span with
+`policy_denied` also produces a local forbidden-publishing alert. Critical failed
+or errored evaluator results and critical false accepts in the selected rows
+surface an opaque `critical_eval_failure` alert with `scope=selected`.
+Whole-bundle error/incomplete or unscopable coverage remains visible separately
+with `scope=bundle_coverage`; it does not assert a selected-row safety failure. Telemetry corruption/unavailability and cumulative
+loss/persistence/export failures surface local `telemetry_failure` alerts.
+Telemetry health counters are **global/cumulative**, not scoped to the selected
+agent or window; their alert reference and `scope=telemetry_global` say so. Pending publish signals are
+windowed and correlated by selected run, and may disappear after acknowledgement.
+No production finance agent or publishing adapter currently emits the first
+three safety warning codes. Synthetic fixtures exercise this contract; complete
+historical safety incident capture, real agent dashboards/threshold calibration,
+remote ownership verification and external alert delivery remain future work.

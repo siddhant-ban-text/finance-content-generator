@@ -283,11 +283,11 @@ When entering `NEEDS_RESEARCH`, save the last valid early checkpoint: `DISCOVERE
 
 **Interfaces:** Produce `MonitoringRepository.summary(agent_name: str, version: str | None, since: datetime) -> AgentSummary`, `MonitoringRepository.run_index(run_id: UUID) -> RunIndex`. AgentSummary reports counts/error/retry/schema/policy/eval failures, p50/p95 latency, usage availability, measured/estimated currency-separated cost, override rate and degradation. RunIndex links story traces/projects/experiments/state events with no private reviewer data.
 
-- [ ] **Write failing tests:** `test_dashboard_latency_cost_and_missing_data`, `test_run_index_links_projects_without_unified_tree`, `test_critical_failures_create_local_alert`. Seed known stage latencies and distinct currencies; assert exact counts/percentiles, no invented zero usage, stable links and missing data indicators. Critical failures cover unsupported claims reaching review, missing asset rights, telemetry failures and forbidden publishing attempts; only local alerts are produced.
-- [ ] **Demonstrate red:** `uv run pytest tests/unit/test_monitoring.py -q`; expected missing monitoring interface.
-- [ ] **Implement minimum:** common Streamlit page filtered by agent/version/Phoenix project, tested with fake-stage events. Run index uses stable run IDs and explicit project/span links when Phoenix lacks unified navigation. Keep private identity and source bodies out of summaries/links. No external alert delivery.
-- [ ] **Demonstrate green:** same test command exits 0; deterministic query fixtures assert alerts and expected summary values. Define percentile convention as nearest rank for nonempty windows; empty windows return null plus sample count 0.
-- [ ] **Review/report/commit:** `feat: expose per-agent monitoring and local alerts`; real agent dashboard validation remains part of each later agent slice.
+- [x] **Write failing tests:** `test_dashboard_latency_cost_and_missing_data`, `test_run_index_links_projects_without_unified_tree`, `test_critical_failures_create_local_alert`. Seed known stage latencies and distinct currencies; assert exact counts/percentiles, no invented zero usage, stable links and missing data indicators. Critical failures cover unsupported claims reaching review, missing asset rights, telemetry failures and forbidden publishing attempts; only local alerts are produced.
+- [x] **Demonstrate red:** `uv run pytest tests/unit/test_monitoring.py -q`; expected missing monitoring interface.
+- [x] **Implement minimum:** common Streamlit page filtered by agent/version/Phoenix project, tested with fake-stage events. Run index uses stable run IDs and explicit project/span links when Phoenix lacks unified navigation. Keep private identity and source bodies out of summaries/links. No external alert delivery.
+- [x] **Demonstrate green:** same test command exits 0; deterministic query fixtures assert alerts and expected summary values. Define percentile convention as nearest rank for nonempty windows; empty windows return null plus sample count 0.
+- [x] **Review/report/commit:** `feat: expose per-agent monitoring and local alerts`; real agent dashboard validation remains part of each later agent slice.
 
 ### Task 14: Reference-aware retention and cleanup
 

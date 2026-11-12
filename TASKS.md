@@ -18,6 +18,6 @@ Worktree: managed attachment for this chat; local absolute path is in the ignore
 | 10 | complete | scoped implementer; separate spec + Astra quality reviews | staged RED→GREEN; release71/full577 GREEN1skip | 3splits x2repeats PASS;42offline spans; regular/offline/mixed await bootstrap | default-deny verifier until Tasks11/12; no real production |
 | 11 | complete | scoped auth implementer; separate spec + Astra quality reviews | auth36/full613 GREEN1skip; callback telemetry6→0 | all3 synthetic eval splits PASS; DB/log/trace sentinel checks | live GitHub OAuth unrun; local trusted-machine boundary |
 | 12 | complete | scoped review implementer; separate spec + Astra quality reviews | RED→GREEN; review74/full687 GREEN1skip | all3synthetic splits x2 PASS; tested offline fallback | live OAuth unrun; fresh-schema hardening; minor Services positional compatibility deferred |
-| 13 | pending | Codex | not run | not run | dependency tasks pending |
+| 13 | complete | scoped implementer; separate spec + Astra quality reviews | RED→GREEN; monitoring22/full709 GREEN1skip | all3synthetic splits PASS; verified offline bundles/index | pending-only telemetry; unknown Phoenix owner; test clock minor deferred |
 | 14 | pending | Codex | not run | not run | dependency tasks pending |
 | 15 | pending | Codex | not run | not run | dependency tasks pending |

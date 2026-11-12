@@ -20,6 +20,11 @@ def summaries(path: Path) -> dict:
 def main():
     import os
     import streamlit as st
+    page=st.sidebar.radio('Page',('Review navigation','Monitoring'))
+    if page=='Monitoring':
+        from app.monitoring.ui import main as monitoring_page
+        monitoring_page()
+        return
     st.title('Local review navigation')
     st.write('Synthetic foundation artifacts are not publishable media. Decisions require a separate authenticated backend action.')
     data=summaries(Path(os.environ.get('FINANCE_REVIEW_DATABASE','data/pipeline.sqlite')))
