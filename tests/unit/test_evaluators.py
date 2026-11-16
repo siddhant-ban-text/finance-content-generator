@@ -195,15 +195,13 @@ def test_execution_unknown_error_is_safe_and_runs_remaining_examples(execution):
     assert 'secret source content' not in bundle.model_dump_json()
 
 
-def test_supplied_usage_is_aggregated_without_inventing_missing_measurements(execution):
+def test_supplied_usage_is_aggregated_without_inventing_missing_measurements(execution,monkeypatch):
     from app.contracts.common import Usage, Money
+    from app.execution.protocols import RunContext
     from decimal import Decimal
-    original = execution.run
-    def measured(stage, envelope):
-        output = original(stage,envelope)
-        return output.model_copy(update={'usage':Usage(input_tokens=2,output_tokens=3,
-            measured_cost=Money(amount=Decimal('0.01'),currency='USD'),availability_reason=None)})
-    execution.run = measured
+    measured=Usage(input_tokens=2,output_tokens=3,
+        measured_cost=Money(amount=Decimal('0.01'),currency='USD'),availability_reason=None)
+    monkeypatch.setattr(RunContext,'usage',property(lambda self:measured))
     bundle = experiment(execution)
     assert bundle.usage.input_tokens == 6 and bundle.usage.output_tokens == 9
     assert bundle.usage.measured_cost.amount == Decimal('0.03')
@@ -547,3 +545,106 @@ def test_atomic_publish_different_existing_bytes_remain_immutable_conflict(execu
         persist_bundle(bundle,tmp_path)
     assert path.read_bytes() == b'different existing bytes'
     assert not tuple(tmp_path.glob('.pending-*'))
+
+
+@pytest.mark.parametrize('runner_failure', [False, True])
+def test_compound_coverage_survives_persistence(execution,tmp_path,runner_failure,monkeypatch):
+    from app.evals.evaluators import foundation_evaluators
+    from app.evals.run import persist_bundle, read_bundle, validate_bundle
+    evaluators = foundation_evaluators()[:-1]
+    monkeypatch.setattr(evaluators[0], 'evaluate', lambda *args: [])
+    if runner_failure:
+        def fail(*args): raise RuntimeError()
+        monkeypatch.setattr(execution, 'run', fail)
+    b = read_bundle(persist_bundle(experiment(execution,evaluators),tmp_path))
+    assert b.status == ('ERROR' if runner_failure else 'INCOMPLETE')
+    assert 'contract' in b.evaluator_versions and 'contract' not in b.observed_evaluators
+    versions = {**b.evaluator_versions, 'fake_rubric':'1.0'}
+    with pytest.raises(ValueError):
+        validate_bundle(b.model_copy(update={'evaluator_versions':versions}))
+
+
+def test_evaluator_children_on_error_are_private(execution,tmp_path,monkeypatch):
+    import json
+    from app.evals.evaluators import foundation_evaluators
+    evaluators = foundation_evaluators()
+    def fail(*args): raise RuntimeError('private-error-text')
+    monkeypatch.setattr(evaluators[-1],'evaluate',fail)
+    dataset = load_dataset(Path('evals/foundation/1.0.0'),'holdout','gate')
+    b = experiment(execution,evaluators,dataset)
+    raw = (execution.telemetry.export_offline(tmp_path/'export')/'spans.jsonl').read_text()
+    children = [v for v in map(json.loads,raw.splitlines()) if v['name']=='evaluator.run']
+    assert len(children)==len(b.records)*len(evaluators)
+    for row in b.records:
+        group = [s for s in children if (s['trace_id'],s['parent_span_id'])==(row.output.trace_id,row.output.span_id)]
+        assert {s['attributes']['evaluator.id'] for s in group}==set(b.evaluator_versions)
+        error, = [s for s in group if s['status']=='ERROR']
+        assert error['events'] and row.example_id not in raw
+    assert 'private-error-text' not in raw
+
+
+@pytest.mark.parametrize('unknown',[False,True])
+def test_retry_usage_round_trip(execution,tmp_path,monkeypatch,unknown):
+    from app.contracts.common import Usage, Money
+    from app.execution.protocols import ModelResponse
+    from app.execution.fakes import FakeStage,FakeProvider
+    from app.evals.run import FixtureStage,persist_bundle,read_bundle,aggregate_usage
+    from decimal import Decimal
+    dataset = load_dataset(Path('evals/foundation/1.0.0'),'dev','gate')
+    dataset._examples = tuple(dataset.iter_examples())[:1]
+    calls=[]
+    def response(self,request):
+        if unknown and len(calls)==1: raise TimeoutError()
+        return ModelResponse(content=request.content,usage=Usage(input_tokens=2,output_tokens=3,
+            measured_cost=Money(amount=Decimal('.1'),currency='USD')))
+    monkeypatch.setattr(FakeProvider,'generate',response)
+    def retry(self,value,context):
+        calls.append(1)
+        result=FakeStage.run(self,value.data,context)
+        if len(calls)==1: raise TimeoutError()
+        return result
+    monkeypatch.setattr(FixtureStage,'run',retry)
+    execution.sleeper=lambda *_:None
+    b=read_bundle(persist_bundle(experiment(execution,dataset=dataset),tmp_path))
+    row,=b.records
+    assert row.retry_count==1 and len(row.attempt_usages)==2
+    assert [u.input_tokens for u in row.attempt_usages]==[None if unknown else 2,2]
+    assert b.usage.input_tokens==(None if unknown else 4)
+    assert b.usage.measured_cost==(None if unknown else Money(amount=Decimal('.2'),currency='USD'))
+
+
+def test_missing_critical_outcomes_preserve_observations(execution,tmp_path,monkeypatch):
+    from app.evals.run import persist_bundle,read_bundle
+    original=execution.run
+    calls=[]
+    def mixed(stage,envelope):
+        calls.append(1)
+        if len(calls)==3: raise RuntimeError()
+        if len(calls)==2: monkeypatch.setattr(stage,'validate_input',lambda *_:None)
+        return original(stage,envelope)
+    monkeypatch.setattr(execution,'run',mixed)
+    b=read_bundle(persist_bundle(experiment(execution),tmp_path))
+    s=b.summary()
+    assert b.status=='ERROR' and s['critical_false_accepts'] is None
+    assert (s['observed_critical_false_accepts'],s['observed_critical_outcomes'],s['expected_critical_outcomes'])==(1,1,2)
+
+
+def test_interrupted_runner_preserves_retry_usage(execution,tmp_path,monkeypatch):
+    from app.evals.run import persist_bundle,read_bundle
+    original=execution.run
+    def fail_after_journal(stage,envelope):
+        original(stage,envelope)
+        raise RuntimeError()
+    monkeypatch.setattr(execution,'run',fail_after_journal)
+    b=read_bundle(persist_bundle(experiment(execution),tmp_path))
+    assert b.status=='ERROR' and all(row.output is None for row in b.records)
+    assert all(len(row.attempt_usages)==1 for row in b.records)
+
+
+def test_forged_config_hash_cannot_borrow_evaluator_fingerprint(execution):
+    from app.evals.run import validate_bundle
+    b=experiment(execution)
+    versions={**b.evaluator_versions,'policy':'2.0'}
+    with pytest.raises(ValueError):
+        validate_bundle(b.model_copy(update={'evaluator_versions':versions,
+            'evaluator_pins':tuple((i,versions[i],f,h) for i,_,f,h in b.evaluator_pins)}))

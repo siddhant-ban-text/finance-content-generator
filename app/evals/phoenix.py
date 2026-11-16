@@ -143,7 +143,9 @@ def _bind_bundle(bundle, dataset):
     examples={row.example_id:row for row in dataset.iter_examples()}
     if (bundle.split != dataset.split or bundle.provenance['dataset_hash'] != dataset.dataset_hash
             or bundle.provenance['dataset_version'] != dataset.dataset_version
-            or bundle.expected_count != dataset.count):
+            or bundle.expected_count != dataset.count
+            or bundle.expected_critical_outcomes != bundle.config.repeats * sum(
+                e.severity == 'critical' and e.reference.outcome == 'reject' for e in examples.values())):
         raise ValueError('bundle_dataset_identity')
     for row in bundle.records:
         example=examples.get(row.example_id)

@@ -90,12 +90,31 @@ def test_malformed_reference_fails_closed(local):
 def test_incomplete_and_unpublished_evidence_protected(local):
     from app.maintenance import cleanup
     root,bundle=local; old=aged(bundle,root,timedelta(days=31))
-    doc=json.loads(old.read_bytes()); old.unlink()
-    (root/'evals/.pending-x').write_text(json.dumps(doc))
-    doc['bundle']['records'][0]['finished_at']=None
-    (root/'evals/invalid.json').write_text(json.dumps(doc))
-    report=cleanup(NOW,False,data_dir=root)
-    assert not report.deleted and len(report.protected)>=2
+    from app.evals.run import read_bundle
+    from app.evals.evaluators import foundation_evaluators
+    runner=create_runner(root/'incomplete-runtime')
+    try:
+        incomplete=run_experiment(ExperimentConfig(),load_dataset(Path('evals/foundation/1.0.0'),'dev','gate'),
+            runner,foundation_evaluators()[:-1])
+    finally:
+        runner.telemetry.shutdown(0)
+        runner.store.conn.close()
+    canonical=aged(incomplete,root,timedelta(days=31))
+    assert read_bundle(canonical).status=='INCOMPLETE'
+    pending=root/'evals/.pending-x'
+    pending.write_bytes(old.read_bytes())
+    report=cleanup(NOW,data_dir=root)
+    assert (str(canonical.relative_to(root)), 'completion_unproven') in {(r.ref,r.reason) for r in report.protected}
+    assert any(r.ref==str(pending.relative_to(root)) for r in report.protected)
+
+
+def test_empty_review_note_does_not_protect_cwd(local,monkeypatch):
+    from app.maintenance import _referenced
+    root,bundle=local
+    monkeypatch.chdir(root)
+    path=root/'evals'/'artifact.json'
+    assert not _referenced(path,bundle,{''})
+    assert _referenced(path,bundle,{'evals'})
 
 def test_reference_recheck_prevents_new_pin_deletion(local, monkeypatch):
     import app.maintenance as maintenance

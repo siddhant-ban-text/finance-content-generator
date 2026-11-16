@@ -178,7 +178,7 @@ def test_approved_comparison_does_not_create_registry(tmp_path):
     import subprocess,sys
     root=tmp_path/'missing.db'
     result=subprocess.run([sys.executable,'-m','app.evals.compare','--agent','foundation',
-        '--candidate','tests/fixtures/evals/approved_baseline.json','--baseline','approved','--registry',str(root)],capture_output=True)
+        '--candidate','tests/fixtures/evals/synthetic-baseline-v1.1.json','--baseline','approved','--registry',str(root)],capture_output=True)
     assert result.returncode==2
     assert not root.exists()
 

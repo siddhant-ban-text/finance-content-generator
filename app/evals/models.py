@@ -202,6 +202,7 @@ class ExampleEvaluation(StrictModel):
     output: OutputEnvelope[SyntheticData] | None = Field(default=None, repr=False)
     results: tuple[EvalResult, ...] = Field(repr=False)
     error: Literal['execution_error'] | None = None
+    attempt_usages: tuple[Usage, ...] = ()
     retry_count: Annotated[int, Field(ge=0)] = 0
     latency_ms: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
     started_at: UtcDatetime | None = None
@@ -216,6 +217,12 @@ class ExampleEvaluation(StrictModel):
         return self
 
 
+def critical_observations(records):
+    return tuple(row.output.status == 'OK' for row in records
+                 if row.severity == 'critical' and row.expected_outcome == 'reject'
+                 and row.output is not None and row.output.status in {'OK','BLOCKED'})
+
+
 class MetricAggregate(StrictModel):
     samples: Annotated[int, Field(ge=0)]
     denominator: Annotated[int, Field(ge=0)]
@@ -227,11 +234,12 @@ class MetricAggregate(StrictModel):
 
 
 class ExperimentBundle(StrictModel):
-    schema_version: Literal['1.0'] = '1.0'
+    schema_version: Literal['1.1'] = '1.1'
     synthetic: Literal[True] = True
     config: ExperimentConfig
     model_configuration: ModelConfiguration
     evaluator_versions: dict[Nonempty, Nonempty]
+    evaluator_pins: tuple[tuple[Nonempty, Nonempty, Sha256, Sha256], ...]
     split: Split
     status: Literal['PASS', 'FAIL', 'ERROR', 'INCOMPLETE']
     example_count: Annotated[int, Field(ge=0)]
@@ -239,15 +247,25 @@ class ExperimentBundle(StrictModel):
     provenance: dict[Nonempty, Nonempty]
     records: tuple[ExampleEvaluation, ...] = Field(repr=False)
     aggregates: dict[Nonempty, MetricAggregate]
-    critical_false_accepts: Annotated[int, Field(ge=0)]
+    expected_critical_outcomes: Annotated[int, Field(ge=0)]
+    critical_false_accepts: Annotated[int, Field(ge=0)] | None
     usage: Usage
     issues: tuple[Literal['dataset_incomplete', 'evaluator_coverage', 'result_incomplete', 'execution_error', 'evaluator_error'], ...]
+
+    @property
+    def observed_evaluators(self):
+        return sorted({r.evaluator_id for row in self.records for r in row.results})
 
     def summary(self) -> dict[str, object]:
         return {'schema_version': self.schema_version, 'synthetic': True, 'status':self.status,
                 'split':self.split, 'example_count':self.example_count,
                 'expected_count':self.expected_count, 'executions':len(self.records),
                 'repeats':self.config.repeats, 'seed':self.config.seed,
+                'configured_evaluators':sorted(self.evaluator_versions),
+                'observed_evaluators':self.observed_evaluators,
+                'observed_critical_outcomes':len(critical_observations(self.records)),
+                'expected_critical_outcomes':self.expected_critical_outcomes,
+                'observed_critical_false_accepts':sum(critical_observations(self.records)),
                 'critical_false_accepts':self.critical_false_accepts, 'bundle_hash':self.record_hash()}
 
     def private_failures(self) -> tuple[ExampleEvaluation, ...]:

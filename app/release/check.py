@@ -83,7 +83,7 @@ def intrinsic(candidate):
         if (not expected or {(r.example_id,r.repeat) for r in bundle.records}!=expected
                 or len(bundle.records)!=len(expected) or bundle.expected_count!=len(examples)):
             reasons.append('incomplete_split')
-        if bundle.status!='PASS' or bundle.critical_false_accepts or bundle.issues:
+        if bundle.status!='PASS' or bundle.critical_false_accepts != 0 or bundle.issues:
             reasons.append('evaluation_failed')
         for row in bundle.records:
             example=examples[row.example_id]

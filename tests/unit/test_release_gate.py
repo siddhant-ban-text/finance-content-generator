@@ -26,7 +26,13 @@ def test_missing_split_evaluator_or_calibration_blocks(service,evidence,tmp_path
     else:
         bundle=evidence['holdout']; first=bundle.records[0]
         if change == 'calibration':
-            evidence['holdout']=bundle.model_copy(update={'provenance':{**bundle.provenance,'evaluator_hash':'a'*64}})
+            # A coherent bundle from another calibration can persist, but the
+            # installed release policy must still reject it.
+            from app.evals.run import canonical, digest
+            pins=tuple((name,version,'a'*64 if name=='fake_rubric' else fingerprint,implementation)
+                       for name,version,fingerprint,implementation in bundle.evaluator_pins)
+            evidence['holdout']=bundle.model_copy(update={'evaluator_pins':pins,
+                'provenance':{**bundle.provenance,'evaluator_hash':digest(canonical(pins))}})
         else:
             results=first.results
             if change in ('evaluator','judge_only'):

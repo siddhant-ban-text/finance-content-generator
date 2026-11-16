@@ -10,13 +10,14 @@ import tempfile
 from pathlib import Path
 import subprocess
 from uuid import uuid4
+from opentelemetry.trace import StatusCode
 
 from app.config import Settings
 from app.contracts.common import Money, Usage
-from app.contracts.execution import InputEnvelope
+from app.contracts.execution import InputEnvelope, OutputEnvelope, SyntheticData
 from app.evals.datasets import load_dataset
 from app.evals.evaluators import Evaluator, REQUIRED, foundation_evaluators, policy_violation
-from app.evals.models import (EvaluationPolicy, EvalResult, ExampleEvaluation, ExperimentBundle,
+from app.evals.models import (critical_observations, EvaluationPolicy, EvalResult, ExampleEvaluation, ExperimentBundle,
     ExperimentConfig, FixtureInput, LoadedDataset, MetricAggregate)
 from app.execution.fakes import FakeStage
 from app.execution.protocols import PolicyError
@@ -95,16 +96,18 @@ def aggregate(records: tuple[ExampleEvaluation, ...], required=REQUIRED) -> dict
     return aggregates
 
 
-def assess(records, expected_count, repeats, issues):
+def assess(records, expected_count, repeats, issues, expected_critical=None):
     issues = set(issues)
     if not expected_count or len(records) != expected_count * repeats:
         issues.add('result_incomplete')
-    critical = 0
+    observations = critical_observations(records)
+    if expected_critical is None:
+        expected_critical = sum(row.severity == 'critical' and row.expected_outcome == 'reject' for row in records)
+    critical = sum(observations) if (len(observations) == expected_critical
+        and len(records) == expected_count * repeats) else None
     for row in records:
         if row.error or row.output is None or row.output.status == 'FAILED':
             issues.add('execution_error')
-        if row.severity == 'critical' and row.expected_outcome == 'reject' and row.output is not None and row.output.status == 'OK':
-            critical += 1
         ids = [r.evaluator_id for r in row.results]
         if sorted(ids) != sorted(REQUIRED):
             issues.add('result_incomplete')
@@ -116,6 +119,8 @@ def assess(records, expected_count, repeats, issues):
                   or (result.status == 'PASS' and result.value != 1.0)
                   or (result.status == 'FAIL' and result.value != 0.0)):
                 issues.add('result_incomplete')
+    if critical is None:
+        issues.add('result_incomplete')
     if 'execution_error' in issues or 'evaluator_error' in issues:
         status = 'ERROR'
     elif issues:
@@ -125,6 +130,18 @@ def assess(records, expected_count, repeats, issues):
     else:
         status = 'PASS'
     return status, critical, tuple(sorted(issues))
+
+
+def attempt_evidence(attempts):
+    complete = bool(attempts) and all(a.finished_at is not None for a in attempts)
+    return dict(
+        attempt_usages=tuple(OutputEnvelope[SyntheticData].model_validate_json(a.output_envelope).usage
+                             if a.output_envelope else Usage() for a in attempts),
+        retry_count=max((a.retry_count for a in attempts),default=0),
+        latency_ms=sum(max(0.,(a.finished_at-a.started_at).total_seconds()*1000)
+                       for a in attempts if a.finished_at is not None) if complete else None,
+        started_at=min(a.started_at for a in attempts) if complete else None,
+        finished_at=max(a.finished_at for a in attempts) if complete else None)
 
 
 def run_experiment(config: ExperimentConfig, dataset: LoadedDataset, runner: AgentRunner,
@@ -146,6 +163,8 @@ def run_experiment(config: ExperimentConfig, dataset: LoadedDataset, runner: Age
     schema_hash = digest(canonical({'input':InputEnvelope[FixtureInput].model_json_schema(),
         'fixture':FixtureInput.model_json_schema(), 'example':type(expected[0]).model_json_schema() if expected else {},
         'experiment':ExperimentBundle.model_json_schema()}))
+    evaluator_pins = tuple((ev.evaluator_id,ev.version,ev.fingerprint(),digest(inspect.getsource(type(ev)).encode()))
+                           for ev in evaluators)
     provenance = {**code_provenance(), 'dataset_hash':authoritative.dataset_hash,
         'dataset_version':authoritative.dataset_version, 'schema_hash':schema_hash,
         'prompt_hash':runner.prompt.sha256, 'prompt_version':runner.prompt.prompt_version,
@@ -153,13 +172,15 @@ def run_experiment(config: ExperimentConfig, dataset: LoadedDataset, runner: Age
         'model_hash':runner.configuration.record_hash(), 'provider':runner.configuration.provider,
         'model':runner.configuration.model, 'parameters_hash':digest(canonical(runner.configuration.parameters)),
         'policy_hash':policy.record_hash(), 'policy_version':policy.policy_id,
-        'evaluator_hash':digest(canonical([(ev.evaluator_id,ev.version,ev.fingerprint(),digest(inspect.getsource(type(ev)).encode())) for ev in evaluators]))}
+        'evaluator_hash':digest(canonical(evaluator_pins))}
+    versions = {ev.evaluator_id:ev.version for ev in evaluators}
     # Exact implementation and calibration bytes bind injected evaluators too.
     implementation_hash = digest(Path('app/evals/evaluators.py').read_bytes())
     provenance['evaluator_implementation_hash'] = implementation_hash
     rows = []
     for repeat in range(config.repeats):
         for example in examples:
+            envelope = None
             try:
                 value = FixtureInput.model_validate_json(example.input.model_dump_json())
                 ref = runner.store.put(value.canonical_bytes(), 'application/json', '1.0')
@@ -171,46 +192,52 @@ def run_experiment(config: ExperimentConfig, dataset: LoadedDataset, runner: Age
                     config_hash=runner.settings.config_hash(),created_at=datetime.now(timezone.utc))
                 output = runner.run(FixtureStage(example.source_refs), envelope)
                 attempts = runner.attempts(envelope.invocation_id)
-                latency_ms = sum(max(0.0,(attempt.finished_at - attempt.started_at).total_seconds()*1000)
-                    for attempt in attempts if attempt.finished_at is not None)
+                evidence = attempt_evidence(attempts)
             except Exception:
+                try:
+                    evidence = attempt_evidence(runner.attempts(envelope.invocation_id)) if envelope else {}
+                except Exception:
+                    evidence = {}
                 rows.append(ExampleEvaluation(example_id=example.example_id,repeat=repeat,
                     severity=example.severity,expected_outcome=example.reference.outcome,
-                    results=(),error='execution_error'))
+                    results=(),error='execution_error',**evidence))
                 continue
             results = []
             for evaluator in evaluators:
                 if evaluator.evaluator_id not in REQUIRED:
                     continue
                 try:
-                    emitted = evaluator.evaluate(example, output)
-                    emitted = [EvalResult.model_validate_json(result.model_dump_json()) for result in emitted]
-                    if any(result.evaluator_id != evaluator.evaluator_id for result in emitted):
-                        issues.add('result_incomplete')
-                    results.extend(emitted)
+                    with runner.telemetry.evaluator_span(output,evaluator.evaluator_id) as span:
+                        emitted = [EvalResult.model_validate_json(result.model_dump_json())
+                                   for result in evaluator.evaluate(example,output)]
+                        if any(result.evaluator_id != evaluator.evaluator_id for result in emitted):
+                            raise ValueError('evaluator_identity_mismatch')
+                        if any(result.status == 'ERROR' for result in emitted):
+                            span.set_status(StatusCode.ERROR)
+                            span.add_event('evaluator.error')
+                        results.extend(emitted)
                 except Exception:
                     results.append(EvalResult(evaluator_id=evaluator.evaluator_id,metric=evaluator.evaluator_id,
                         status='ERROR',reason='evaluator_error'))
             rows.append(ExampleEvaluation(example_id=example.example_id,repeat=repeat,
                 severity=example.severity,expected_outcome=example.reference.outcome,
                 output=output,results=tuple(results),
-                error='execution_error' if output.status == 'FAILED' else None,
-                retry_count=max((attempt.retry_count for attempt in attempts), default=0),latency_ms=latency_ms,
-                started_at=min((attempt.started_at for attempt in attempts),default=None) if all(attempt.finished_at is not None for attempt in attempts) else None,
-                finished_at=max((attempt.finished_at for attempt in attempts),default=None) if all(attempt.finished_at is not None for attempt in attempts) else None))
+                error='execution_error' if output.status == 'FAILED' else None,**evidence))
     records = tuple(rows)
-    status, critical, issues = assess(records, authoritative.count, config.repeats, issues)
+    expected_critical = config.repeats * sum(
+        e.severity == 'critical' and e.reference.outcome == 'reject' for e in expected)
+    status, critical, issues = assess(records, authoritative.count, config.repeats, issues, expected_critical)
     return ExperimentBundle(config=config,model_configuration=runner.configuration,
-        evaluator_versions={ev.evaluator_id:ev.version for ev in evaluators},split=dataset.split,status=status,
+        evaluator_versions=versions,evaluator_pins=evaluator_pins,expected_critical_outcomes=expected_critical,split=dataset.split,status=status,
         example_count=len(examples),expected_count=authoritative.count,provenance=provenance,
         records=records,aggregates=aggregate(records),critical_false_accepts=critical,
         usage=aggregate_usage(records),issues=issues)
 
 
 def aggregate_usage(records: tuple[ExampleEvaluation, ...]) -> Usage:
-    if not records or any(row.output is None for row in records):
+    if not records:
         return Usage()
-    usages = [row.output.usage for row in records]
+    usages = [usage for row in records for usage in (row.attempt_usages or (Usage(),))]
     def tokens(name):
         values = [getattr(u,name) for u in usages]
         return None if any(v is None for v in values) else sum(values)
@@ -237,12 +264,14 @@ def _validate_pins(bundle: ExperimentBundle) -> None:
     pins = bundle.provenance
     required = set(REQUIRED)
     versioned = set(bundle.evaluator_versions)
-    if versioned != required:
-        observed = {result.evaluator_id for row in bundle.records for result in row.results}
-        if (bundle.status not in {'INCOMPLETE', 'ERROR'}
-                or 'evaluator_coverage' not in bundle.issues
-                or versioned != observed or not versioned < required):
-            raise ValueError('invalid_provenance')
+    if (not set(bundle.observed_evaluators) <= versioned
+            or not versioned <= required
+            or {name:version for name,version,_,_ in bundle.evaluator_pins} != bundle.evaluator_versions
+            or pins.get('evaluator_hash') != digest(canonical(bundle.evaluator_pins))
+            or (len(bundle.evaluator_pins) != len(versioned) and 'evaluator_coverage' not in bundle.issues)
+            or (versioned != required and (bundle.status not in {'ERROR','INCOMPLETE'}
+                or 'evaluator_coverage' not in bundle.issues))):
+        raise ValueError('invalid_provenance')
     if (not MANDATORY_PROVENANCE.issubset(pins)
             or any(re.fullmatch('[0-9a-f]{64}',pins[key]) is None for key in HASH_PROVENANCE)
             or re.fullmatch('[0-9a-f]{40}|[0-9a-f]{64}',pins['code_commit']) is None
@@ -256,6 +285,9 @@ def _validate_pins(bundle: ExperimentBundle) -> None:
         output = row.output
         if output is None:
             continue
+        if (len(row.attempt_usages) != row.retry_count + 1
+                or row.attempt_usages[-1] != output.usage):
+            raise ValueError('invalid_attempt_usage')
         if (output.agent_name != bundle.config.agent_name
                 or output.prompt_hash != pins['prompt_hash']
                 or output.prompt_version != pins['prompt_version']
@@ -271,7 +303,7 @@ def _validate_pins(bundle: ExperimentBundle) -> None:
 def validate_bundle(bundle: ExperimentBundle) -> ExperimentBundle:
     bundle = ExperimentBundle.model_validate_json(bundle.model_dump_json())
     _validate_pins(bundle)
-    status, critical, issues = assess(bundle.records,bundle.expected_count,bundle.config.repeats,bundle.issues)
+    status, critical, issues = assess(bundle.records,bundle.expected_count,bundle.config.repeats,bundle.issues,bundle.expected_critical_outcomes)
     memberships = {(r.example_id, r.repeat) for r in bundle.records}
     ids = {r.example_id for r in bundle.records}
     if (status != bundle.status or critical != bundle.critical_false_accepts

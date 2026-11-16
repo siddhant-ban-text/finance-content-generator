@@ -16,7 +16,7 @@ from app.config import Settings
 class Services:
     oauth: GitHubOAuth
     sessions: SessionService
-    review: object | None = None
+    review: object | None = field(default=None, kw_only=True)
     clock: Callable = field(default=lambda:datetime.now(timezone.utc))
 
 

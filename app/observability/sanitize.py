@@ -8,13 +8,14 @@ PROJECTS = frozenset('finance-media-' + name for name in (
     'news-scout', 'novelty', 'research', 'fact-check', 'scriptwriter', 'producer', 'growth', 'orchestrator'))
 OPERATIONS = frozenset(('pipeline.run', 'agent.invoke', 'model.call', 'tool.call',
     'evaluator.run', 'workflow.transition', 'approval.decision', 'render.run', 'publish.run', 'telemetry.operation'))
-EVENTS = frozenset(('exception', 'state.transition', 'source.used', 'tool.completed', 'telemetry.event'))
+EVENTS = frozenset(('exception', 'human_decision', 'evaluator.error', 'state.transition', 'source.used', 'tool.completed', 'telemetry.event'))
 ERRORS = frozenset(('exception', 'timeout', 'unavailable', 'invalid_input', 'policy_denied',
     'capacity_exceeded', 'persistence_failed', 'export_failed', 'export_timeout', 'invalid_record', 'duplicate_conflict'))
 PARAMETERS = frozenset(('temperature', 'top_p', 'top_k', 'max_tokens', 'seed', 'frequency_penalty', 'presence_penalty'))
 NUMBERS = frozenset(('retry.count', 'latency.ms', 'latency_ms', 'source.count', 'claim.count', 'usage.input_tokens', 'usage.output_tokens',
     'usage.measured_cost', 'usage.estimated_cost'))
 ENUMS = {
+    'evaluator.id': frozenset(('contract','policy','evidence','state','metadata','fake_rubric')),
     'model.provider': frozenset(('ollama', 'api', 'openai', 'anthropic', 'fake', 'local')),
     'agent.name': frozenset(('news_scout', 'novelty_analyst', 'researcher', 'fact_checker', 'growth_analyst',
                              'news-scout', 'novelty', 'research', 'fact-check', 'scriptwriter', 'producer', 'growth', 'orchestrator', 'foundation')),
@@ -76,7 +77,7 @@ def sanitize_attributes(attributes: Mapping[str, object]) -> dict[str, object]:
         elif key in ENUMS:
             if isinstance(value, str) and value in ENUMS[key]:
                 safe[key] = value
-        elif key in ('run.id', 'story.id', 'invocation.id', 'claim.id', 'source.id', 'tool.id', 'experiment.id'):
+        elif key in ('run.id', 'story.id', 'invocation.id', 'claim.id', 'decision_id', 'source.id', 'tool.id', 'experiment.id'):
             if isinstance(value, UUID):
                 safe[key] = str(value)
             elif isinstance(value, str):

@@ -7,6 +7,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+from collections import Counter
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -44,7 +45,7 @@ class SyntheticArtifact(StrictModel):
 
 
 class DemoReport(StrictModel):
-    schema_version: Literal['1.0'] = '1.0'
+    schema_version: Literal['1.1'] = '1.1'
     kind: Literal['synthetic_foundation'] = 'synthetic_foundation'
     status: Literal['PASS','FAIL']
     final_state: StoryState
@@ -188,11 +189,14 @@ def run_demo(output_dir: Path, telemetry_mode: Literal['offline','phoenix']) -> 
             trace_id=output.trace_id))
         (root/'review-manifest.json').write_bytes(manifest.canonical_bytes())
         experiments = {}; pins = {}; outputs = [output]
+        expected_evaluations = []
         adapter = PhoenixAdapter(root/'phoenix-registry.db')
         config = ExperimentConfig()
         for split in ('dev','holdout','prod_regression'):
             dataset = load_dataset(Path(config.dataset_root),split,'gate')
             bundle = run_experiment(config,dataset,runner,foundation_evaluators())
+            expected_evaluations.extend((row.output.trace_id,row.output.span_id,evaluator_id)
+                for row in bundle.records if row.output is not None for evaluator_id in bundle.evaluator_versions)
             outputs.extend(row.output for row in bundle.records if row.output is not None)
             path = persist_bundle(bundle,root/'evals')
             offline = adapter.export_offline(bundle,root/'offline'/bundle.record_hash())
@@ -246,10 +250,15 @@ def run_demo(output_dir: Path, telemetry_mode: Literal['offline','phoenix']) -> 
             and set(expected)==output_pairs and set(invocations)==set(expected)
             and all(invocations[pair].attributes.get('invocation.id')==identity for pair,identity in expected.items() if pair in invocations)
             and all(linked_execution(value) for value in outputs))
+        evaluation_children = [(span.trace_id,span.parent_span_id,span.attributes.get('evaluator.id'))
+                               for span in exported if span.name=='evaluator.run']
+        evaluator_coverage = bool(expected_evaluations) and Counter(expected_evaluations)==Counter(evaluation_children)
         local_evidence = {'snapshot_verified':snapshot_verified,'execution_coverage_complete':coverage_complete,
+            'evaluator_coverage_complete':evaluator_coverage,
+            'expected_evaluator_span_count':len(expected_evaluations),'observed_evaluator_span_count':len(evaluation_children),
             'expected_execution_span_count':len(expected),'observed_execution_span_count':len(invocations),
             'missing_execution_span_count':len(missing),
-            'complete':bool(snapshot_verified and coverage_complete and outbox_preserved
+            'complete':bool(snapshot_verified and coverage_complete and evaluator_coverage and outbox_preserved
                 and local_health.pending_count==len(pending_before) and local_health.lost_records==0
                 and local_health.persistence_failures==0
                 and local_health.error_code in {None,'export_failed','export_timeout'})}
@@ -259,7 +268,7 @@ def run_demo(output_dir: Path, telemetry_mode: Literal['offline','phoenix']) -> 
             runner.telemetry.exporter = local_exporter()
             export_report = runner.telemetry.flush(1).model_dump(mode='json')
         current = state.get(snapshot.story_id)
-        passed = (local_evidence['complete'] and all(row['status']=='PASS' and row['offline_verified'] for row in experiments.values())
+        passed = (local_evidence['complete'] and all(row['status']=='PASS' and row['critical_false_accepts']==0 and row['offline_verified'] for row in experiments.values())
             and all(row['rejected'] and row.get('state_unchanged',True) for row in negatives.values())
             and gate.status=='REQUIRES_BOOTSTRAP_APPROVAL' and current.state==StoryState.AWAITING_APPROVAL
             and current.approval_id is None and current.manifest_hash==manifest.record_hash())
@@ -282,7 +291,7 @@ def run_demo(output_dir: Path, telemetry_mode: Literal['offline','phoenix']) -> 
             'final_state':report.final_state,'manifest_hash':report.manifest_hash,
             'prompt_version':report.prompt_version,'prompt_hash':report.prompt_hash,
             'experiments':{split:{key:value for key,value in row.items() if key in {
-                'split','status','bundle_hash','example_count','critical_false_accepts','expected_rejections','offline_verified'}}
+                'split','status','bundle_hash','example_count','critical_false_accepts','observed_critical_false_accepts','expected_critical_outcomes','observed_critical_outcomes','expected_rejections','offline_verified'}}
                 for split,row in experiments.items()},
             'negative_gates':{key:value['rejected'] for key,value in negatives.items()},
             'release_status':gate.status,'trace_export_hash':trace_manifest['sha256'],

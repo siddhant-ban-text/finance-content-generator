@@ -254,3 +254,9 @@ def test_slow_provider_exchange_allows_logout_on_sqlite_owning_loop():
                 await callback
             conn.close()
     asyncio.run(exercise())
+
+
+def test_services_preserves_third_positional_clock():
+    clock=lambda:NOW
+    services=Services(None,None,clock)
+    assert services.clock is clock and services.review is None

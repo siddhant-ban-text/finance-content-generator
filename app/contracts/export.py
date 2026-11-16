@@ -9,6 +9,8 @@ from app.workflow import state
 from app.observability import models as telemetry
 from app.release import models as releases
 
+from app.review.service import HumanDecision
+
 GROUPS = {
     "releases.json": (releases.ReleasePolicy,releases.EvidencePin,releases.ReleaseCandidate,
                       releases.GateDecision,releases.ReleaseApproval,releases.FeedbackAnnotation,
@@ -33,7 +35,9 @@ def export_schemas(directory: Path) -> list[str]:
     for name, models in GROUPS.items():
         content = {"schema_version": "1.0", "models": {model.__name__: model.model_json_schema() for model in models}}
         (directory/name).write_text(json.dumps(content,sort_keys=True,indent=2)+"\n")
-    return list(GROUPS)
+    # The published review contract is a standalone JSON Schema.
+    (directory/"review.json").write_text(json.dumps(HumanDecision.model_json_schema(),sort_keys=True,indent=2)+"\n")
+    return [*GROUPS, "review.json"]
 
 if __name__ == "__main__":
     parser=argparse.ArgumentParser(description=__doc__)

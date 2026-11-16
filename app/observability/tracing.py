@@ -130,7 +130,10 @@ class _DurableProcessor(SpanProcessor):
         except (ValidationError, ValueError, TypeError):
             self.telemetry._failure('invalid_record', (run,), lost=True)
             return
-        self.telemetry.enqueue(record)
+        result = self.telemetry.enqueue(record)
+        receipt = self.telemetry._decision_enqueue.get()
+        if receipt is not None and span.name == 'approval.decision' and result.accepted:
+            receipt.append(record.trace_id)
     def shutdown(self):
         pass
     def force_flush(self, timeout_millis=30000):
@@ -176,6 +179,7 @@ class Telemetry:
         self.time_ns = time_ns
         self._lock = threading.RLock()
         self._providers = {}
+        self._decision_enqueue = ContextVar('decision_enqueue',default=None)
         self._story = ContextVar('telemetry_story',default=None)
         self._fallback = dict(lost_records=0,persistence_failures=0,export_failures=0,
                               degraded_runs=set(),error_code=None)
@@ -270,6 +274,30 @@ class Telemetry:
                 provider.add_span_processor(_DurableProcessor(self,project))
                 self._providers[project] = provider
             return self._providers[project].get_tracer('finance.observability','1.0')
+
+    def decision_attempt(self, decision_id: UUID) -> str | None:
+        """The receipt is authoritative. This event records the local decision attempt."""
+        accepted = []
+        token = self._decision_enqueue.set(accepted)
+        story_token = self._story.set(None)
+        try:
+            with self.span('approval.decision','finance-media-orchestrator',{},_parent=Context()) as span:
+                span.add_event('human_decision', {'decision_id':decision_id})
+            return accepted[0] if accepted else None
+        finally:
+            self._story.reset(story_token)
+            self._decision_enqueue.reset(token)
+
+    @contextmanager
+    def evaluator_span(self, output, evaluator_id):
+        parent = TraceContextTextMapPropagator().extract({
+            'traceparent':f'00-{output.trace_id}-{output.span_id}-01'})
+        if not trace.get_current_span(parent).get_span_context().is_valid:
+            raise ValueError('invalid_evaluator_parent')
+        with self.span('evaluator.run','finance-media-orchestrator',{
+                'evaluator.id':evaluator_id,'invocation.id':output.invocation_id,
+                'run.id':output.run_id,'story.id':output.story_id},_parent=parent) as span:
+            yield span
 
     @contextmanager
     def story_context(self, run_id: UUID, story_id: UUID, parent: str | None = None):

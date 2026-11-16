@@ -258,7 +258,7 @@ class StateService:
             self.conn.commit(); return result
         except BaseException: self.conn.rollback(); raise
 
-    def _review_transition(self,old,decision,scope,key,fingerprint):
+    def _review_transition(self,old,decision,scope,key,fingerprint,trace_attempt):
         """Internal seam: caller owns the authenticated decision transaction."""
         if not self.conn.in_transaction: raise ValueError('review transaction required')
         target={'approve':StoryState.APPROVED_FOR_PUBLISH,'reject':StoryState.REJECTED,'revise':StoryState.NEEDS_REVISION}[decision.action]
@@ -283,4 +283,6 @@ class StateService:
             resume=old.state if old.state in NORMAL[:7] else StoryState.RENDERED
             artifacts=self._retain(artifacts,resume)
         result=old.model_copy(update=dict(state=target,version=old.version+1,approval_id=approval,resume_target=resume,artifacts=artifacts,reason_code='human_'+decision.action))
-        return self._save(result,old,scope,'human_review',key,fingerprint,'human_'+decision.action,decision.trace_id)
+        trace_id = trace_attempt(decision.decision_id)
+        self._save(result,old,scope,'human_review',key,fingerprint,'human_'+decision.action,trace_id)
+        return trace_id

@@ -9,13 +9,29 @@ from app.storage.db import open_database
 from app.storage.artifacts import ArtifactStore
 from app.workflow.policy import PolicyEngine
 from tests.integration.task4_fixtures import setup,artifact,create,advance,awaiting,manifest,NOW,STAGES,validator
-NORMAL=list(StoryState)[:9]
-FORWARD=dict(zip(NORMAL[:7],NORMAL[1:8]))
+# Named editorial transitions from the workflow specification.
+REWORK = {'REJECTED','NEEDS_RESEARCH','NEEDS_REVISION'}
+ALLOWED_TARGETS = {
+    'DISCOVERED': REWORK | {'CLUSTERED'},
+    'CLUSTERED': REWORK | {'SCORED'},
+    'SCORED': REWORK | {'RESEARCHED'},
+    'RESEARCHED': REWORK | {'VERIFIED'},
+    'VERIFIED': REWORK | {'SCRIPTED'},
+    'SCRIPTED': REWORK | {'RENDERED'},
+    'RENDERED': REWORK | {'AWAITING_APPROVAL'},
+    'AWAITING_APPROVAL': REWORK | {'AWAITING_APPROVAL','APPROVED_FOR_PUBLISH'},
+    'APPROVED_FOR_PUBLISH': REWORK | {'AWAITING_APPROVAL'},
+    'NEEDS_RESEARCH': {'DISCOVERED','CLUSTERED','SCORED','REJECTED'},
+    'NEEDS_REVISION': {'DISCOVERED','CLUSTERED','SCORED','RESEARCHED','VERIFIED','SCRIPTED','RENDERED','REJECTED'},
+    'PUBLISHED': set(),
+    'ANALYZED': set(),
+    'REJECTED': set(),
+}
+
 @pytest.mark.parametrize('source',list(StoryState))
 @pytest.mark.parametrize('target',list(StoryState))
 def test_all_state_pairs_against_matrix(source,target):
-    expected=(FORWARD.get(source)==target or (source in NORMAL and target in {StoryState.REJECTED,StoryState.NEEDS_RESEARCH,StoryState.NEEDS_REVISION}) or (source in {StoryState.NEEDS_RESEARCH,StoryState.NEEDS_REVISION} and target==StoryState.REJECTED) or (source==StoryState.NEEDS_RESEARCH and target in NORMAL[:3]) or (source==StoryState.NEEDS_REVISION and target in NORMAL[:7]) or (source in NORMAL[7:9] and target==StoryState.AWAITING_APPROVAL) or (source==StoryState.AWAITING_APPROVAL and target==StoryState.APPROVED_FOR_PUBLISH))
-    assert allowed_edge(source,target)==expected
+    assert allowed_edge(source,target)==(target.value in ALLOWED_TARGETS[source.value])
 
 def test_agent_cannot_approve_or_publish(tmp_path):
     _,store,_,svc=setup(tmp_path); snap,m=awaiting(svc,store)

@@ -21,6 +21,7 @@ NOW = datetime(2026, 11, 12, tzinfo=timezone.utc)
 @pytest.fixture
 def journal(tmp_path):
     runner = create_runner(tmp_path/'runtime')
+    runner.clock = lambda: NOW
     data = SyntheticData(value=1)
     ref = runner.store.put(data.canonical_bytes(), 'application/json', '1.0')
     env = InputEnvelope[SyntheticData](run_id=uuid4(),story_id=uuid4(),invocation_id=uuid4(),
@@ -269,7 +270,7 @@ def test_eval_alert_false_accept_respects_selected_scope(journal,tmp_path,exclud
     false_accept=rejected.model_copy(update=updates)
     rows=(clean,false_accept)
     status,critical,issues=assess(rows,len(rows),1,())
-    bundle=bundle.model_copy(update={'records':rows,'example_count':len(rows),'expected_count':len(rows),
+    bundle=bundle.model_copy(update={'records':rows,'example_count':len(rows),'expected_count':len(rows),'expected_critical_outcomes':1,
         'aggregates':aggregate(rows),'status':status,'critical_false_accepts':critical,'issues':issues,'usage':aggregate_usage(rows)})
     path=persist_bundle(bundle,tmp_path/'evals')
     project=None

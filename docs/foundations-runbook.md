@@ -244,11 +244,9 @@ separately. Content approval cannot approve a model/prompt release. First releas
 bootstrap requires its own explicitly checked human action. Release checks re-read
 all split/repeat evidence, baseline and exact pins under the same write lock.
 
-Human identities/notes remain in the protected local audit database; the manual
-review span emits only the opaque decision ID and suppresses exception text.
-Without an OTel SDK/collector, immutable audit rows remain the authoritative local
-fallback; core decisions continue to work. Agent experiment tracing retains its
-existing tested durable offline outbox/export. Native FastAPI instrumentation stays
+Human identities and notes remain in the protected local audit database. The review service queues a local `approval.decision` span containing the opaque decision ID after checking readiness. Receipts in schema 1.1 record the trace ID only after the outbox accepts the span. If telemetry fails, the decision can still commit with a null trace ID and status `DEGRADED`. Historical 1.0 IDs are unverified. An idempotent replay reads the original receipt.
+
+The business journal and telemetry outbox use separate transactions. A later business rollback can leave a span for an attempted decision. Only a committed receipt and state event establish the result. Local enqueue by itself makes no claim of collector delivery. Native FastAPI instrumentation stays
 disabled, including callback query tracing. There is no test-auth configuration or
 browser-provided actor identity, and no publication route or adapter. Approved
 synthetic artifacts are not publishable media.

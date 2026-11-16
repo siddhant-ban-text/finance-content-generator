@@ -148,7 +148,7 @@ def _entry(path, root, reason):
 def _referenced(path, bundle, refs):
     return (bundle.record_hash() in refs or str(path) in refs or str(path.resolve()) in refs
             or any(path.resolve().is_relative_to(Path(r).resolve())
-                   for r in refs if '\x00' not in r))
+                   for r in refs if r and '\x00' not in r))
 
 
 def cleanup(now: datetime, dry_run: bool = True, *, data_dir: Path | None = None) -> RetentionReport:

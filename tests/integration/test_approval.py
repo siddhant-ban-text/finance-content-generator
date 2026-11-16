@@ -1,6 +1,7 @@
 """Real synthetic artifacts and server sessions; no browser actor authority."""
 from datetime import timedelta
 import sqlite3
+import json
 import pytest
 from app.auth.sessions import SessionService
 from app.auth.github import GitHubIdentity
@@ -169,25 +170,32 @@ def test_audit_failure_rolls_back_state_and_receipt(review):
     assert len(state.events(s.story_id))==8
     assert state.conn.execute('SELECT count(*) FROM approval_decisions').fetchone()[0]==0
     assert state.conn.execute('SELECT count(*) FROM review_receipts').fetchone()[0]==0
+    attempt,=svc.telemetry.pending_records()
+    assert attempt.name=='approval.decision' and attempt.events[0].name=='human_decision'
+    assert state.conn.execute('SELECT count(*) FROM human_decisions').fetchone()[0]==0
 
 
-def test_review_trace_contains_only_opaque_decision_id(review,monkeypatch):
-    from opentelemetry import trace
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-    exporter=InMemorySpanExporter();provider=TracerProvider()
-    provider.add_span_processor(SimpleSpanProcessor(exporter))
-    monkeypatch.setattr(trace,'_TRACER_PROVIDER',provider)
+def test_review_trace_contains_only_opaque_decision_id(review):
     receipt=decide(review,notes='private-note-sentinel')
-    spans=exporter.get_finished_spans()
-    assert len(spans)==1
-    assert f'{spans[0].context.trace_id:032x}'==receipt.trace_id
-    assert dict(spans[0].attributes)=={}
-    assert len(spans[0].events)==1
-    assert dict(spans[0].events[0].attributes)=={'decision_id':str(receipt.decision_id)}
-    assert 'private-note-sentinel' not in repr(spans)
-    assert review[3].session_id not in repr(spans)
+    assert decide(review,notes='private-note-sentinel')==receipt
+    span,=review[0].telemetry.pending_records()
+    assert span.trace_id==receipt.trace_id and span.name=='approval.decision'
+    assert set(span.attributes)=={'latency_ms'}
+    event,=span.events
+    assert event.name=='human_decision' and event.attributes=={'decision_id':str(receipt.decision_id)}
+    assert 'private-note-sentinel' not in span.model_dump_json()
+    assert review[3].session_id not in span.model_dump_json()
+
+
+def test_decision_survives_durable_span_failure(review,monkeypatch):
+    import sqlite3
+    def fail(*args): raise sqlite3.OperationalError('disk unavailable')
+    from app.observability.outbox import Outbox
+    monkeypatch.setattr(Outbox,'enqueue',fail)
+    receipt=decide(review)
+    assert receipt.trace_id is None and receipt.trace_status=='DEGRADED'
+    assert review[1].get(receipt.story_id).approval_id==str(receipt.decision_id)
+    assert decide(review)==receipt and not review[0].telemetry.pending_records()
 
 
 @pytest.mark.parametrize('member,target',[('dossier','SCORED'),('verification','SCORED'),('script','RESEARCHED'),('captions','RESEARCHED'),('subtitles','RESEARCHED'),('charts','RESEARCHED'),('render','SCRIPTED'),('attributions','SCRIPTED'),('asset_register','SCRIPTED')])
@@ -239,3 +247,15 @@ def test_registered_manifest_blob_required_for_approval(review,damage):
     for table in ('approval_decisions','human_decisions','review_receipts'):
         assert state.conn.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0
     assert not state.conn.in_transaction
+
+
+def test_receipt_trace_contract_marks_historical_link_unverified(review):
+    from app.review.service import HumanDecision
+    from pydantic import ValidationError
+    payload=decide(review).model_dump(mode='json')
+    legacy={**payload,'schema_version':'1.0'}
+    del legacy['trace_status']
+    assert HumanDecision.model_validate_json(json.dumps(legacy)).trace_status=='LEGACY_UNVERIFIED'
+    for change in ({'trace_id':None},{'trace_status':'DEGRADED'},{'trace_status':'LEGACY_UNVERIFIED'}):
+        with pytest.raises(ValidationError):
+            HumanDecision.model_validate_json(json.dumps(payload|change))

@@ -47,7 +47,7 @@ def browser(root):
         return httpx.Response(200, json={'id':123,'type':'User','login':'private-e2e-sentinel'})
     sessions = SessionService(conn, settings)
     review = ReviewService(state, current_session_verifier=sessions.verify_principal)
-    app = create_app(settings, Services(GitHubOAuth(settings, transport=httpx.MockTransport(exchange)), sessions, review))
+    app = create_app(settings, Services(GitHubOAuth(settings, transport=httpx.MockTransport(exchange)), sessions, review=review))
     client = TestClient(app, base_url='http://127.0.0.1:8765')
     login = client.get('/auth/login', follow_redirects=False)
     oauth_state = parse_qs(urlsplit(login.headers['location']).query)['state'][0]
@@ -257,14 +257,14 @@ def test_phoenix_ack_keeps_preflush_snapshot(tmp_path, monkeypatch, delivery_ok)
     assert report.telemetry['outbox_preserved']  # Export itself does not ACK.
 
 
-@pytest.mark.parametrize('record_loss',[True,False],ids=['reported-loss','silent-drop'])
-def test_demo_rejects_missing_execution_span(tmp_path, monkeypatch, record_loss):
+@pytest.mark.parametrize(('record_loss','operation'),[(True,'agent.invoke'),(False,'agent.invoke'),(False,'evaluator.run')])
+def test_demo_rejects_missing_execution_span(tmp_path, monkeypatch, record_loss, operation):
     from app.observability.models import EnqueueResult
     from app.observability.outbox import Outbox
     original = Outbox.enqueue
     dropped = []
     def lose_invocation(outbox, record):
-        if record.name == 'agent.invoke' and not dropped:
+        if record.name == operation and not dropped:
             dropped.append((record.trace_id,record.span_id))
             if record_loss:
                 raise OSError('transient synthetic outbox failure')
@@ -277,6 +277,10 @@ def test_demo_rejects_missing_execution_span(tmp_path, monkeypatch, record_loss)
     assert report.final_state == StoryState.AWAITING_APPROVAL
     assert report.telemetry['health']['lost_records'] == int(record_loss)
     assert report.telemetry['local_evidence']['complete'] is False
-    assert report.telemetry['local_evidence']['missing_execution_span_count'] == 1
+    evidence=report.telemetry['local_evidence']
+    assert evidence['missing_execution_span_count'] == int(operation=='agent.invoke')
+    assert evidence['evaluator_coverage_complete'] == (operation!='evaluator.run')
+    assert evidence['expected_evaluator_span_count']==54
+    assert evidence['observed_evaluator_span_count']==54-int(operation=='evaluator.run')
     assert report.telemetry['local_evidence']['snapshot_verified'] is True
     assert json.loads((tmp_path/'public-report.json').read_bytes())['status'] == 'FAIL'

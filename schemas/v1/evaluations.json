@@ -683,6 +683,14 @@
         "ExampleEvaluation": {
           "additionalProperties": false,
           "properties": {
+            "attempt_usages": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/Usage"
+              },
+              "title": "Attempt Usages",
+              "type": "array"
+            },
             "error": {
               "anyOf": [
                 {
@@ -1249,9 +1257,43 @@
           "$ref": "#/$defs/ExperimentConfig"
         },
         "critical_false_accepts": {
-          "minimum": 0,
-          "title": "Critical False Accepts",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Critical False Accepts"
+        },
+        "evaluator_pins": {
+          "items": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Evaluator Pins",
+          "type": "array"
         },
         "evaluator_versions": {
           "additionalProperties": {
@@ -1272,6 +1314,11 @@
         "expected_count": {
           "minimum": 0,
           "title": "Expected Count",
+          "type": "integer"
+        },
+        "expected_critical_outcomes": {
+          "minimum": 0,
+          "title": "Expected Critical Outcomes",
           "type": "integer"
         },
         "issues": {
@@ -1310,8 +1357,8 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "1.0",
-          "default": "1.0",
+          "const": "1.1",
+          "default": "1.1",
           "title": "Schema Version",
           "type": "string"
         },
@@ -1348,6 +1395,7 @@
         "config",
         "model_configuration",
         "evaluator_versions",
+        "evaluator_pins",
         "split",
         "status",
         "example_count",
@@ -1355,6 +1403,7 @@
         "provenance",
         "records",
         "aggregates",
+        "expected_critical_outcomes",
         "critical_false_accepts",
         "usage",
         "issues"
